@@ -1,0 +1,140 @@
+name: CI
+
+# Implements the CODING_STANDARD.md §7 PR/CI gate checklist. Every job below is a
+# blocking gate (see the `ci-gate` aggregation job); the cross-platform matrix is
+# scaffolded but advisory until macOS/Windows adapters land (ROADMAP v0.2.0/v0.3.0).
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+
+# Cancel superseded runs on the same ref to save CI minutes.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  UV_PYTHON: "3.12" # v0.1.0 targets Python 3.12+ (ROADMAP); pin the CI interpreter.
+  PYTHONUTF8: "1" # UTF-8 mode everywhere (harmless on Linux; keeps import-linter's
+  # rich progress spinner from crashing on a legacy Windows console).
+
+jobs:
+  lint:
+    name: lint (ruff)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --frozen
+      - name: ruff check
+        run: uv run ruff check .
+      - name: ruff format --check
+        run: uv run ruff format --check .
+
+  typecheck:
+    name: typecheck (mypy --strict)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --frozen
+      - run: uv run mypy --strict src
+
+  imports:
+    name: layering (import-linter)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --frozen
+      - run: uv run lint-imports
+
+  test:
+    name: test (ubuntu, required)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --frozen
+      - name: pytest (+coverage gate, 80% line & branch)
+        run: uv run pytest
+
+  test-cross-platform:
+    # §4 permits core-only changes to run on Linux alone; macOS/Windows are run
+    # here for early signal but are advisory (continue-on-error) until their
+    # FilesystemAdapters ship (ROADMAP v0.2.0 macOS, v0.3.0 Windows). When adapter
+    # code is touched this job should be promoted to blocking.
+    name: test (${{ matrix.os }}, advisory)
+    runs-on: ${{ matrix.os }}
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --frozen
+      - run: uv run pytest
+
+  audit:
+    name: dependency audit (pip-audit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --frozen
+      - run: uv run pip-audit
+
+  commits:
+    name: commit messages (commitizen)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --frozen
+      - name: Conventional Commits check over the PR range
+        run: >
+          uv run cz check
+          --rev-range ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}
+
+  ci-gate:
+    # Single aggregation gate for branch protection. Requires every blocking job.
+    # The advisory cross-platform job is intentionally excluded.
+    name: ci-gate
+    runs-on: ubuntu-latest
+    needs: [lint, typecheck, imports, test, audit]
+    if: always()
+    steps:
+      - name: Require all blocking jobs to pass
+        run: |
+          results="${{ needs.lint.result }} ${{ needs.typecheck.result }} ${{ needs.imports.result }} ${{ needs.test.result }} ${{ needs.audit.result }}"
+          echo "job results: $results"
+          for r in $results; do
+            if [ "$r" != "success" ]; then
+              echo "::error::A required CI job did not succeed."
+              exit 1
+            fi
+          done
+          echo "All required CI jobs passed."

@@ -1,0 +1,28 @@
+version: 2
+
+# CODING_STANDARD.md §7 gate: Dependabot keeps dependencies (and CI actions)
+# current and surfaces vulnerable versions. Commit messages use Conventional
+# Commit prefixes so they pass the §5 commit-message gate.
+updates:
+  # Python dependencies declared in pyproject.toml / uv.lock.
+  - package-ecosystem: "uv"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: "build"
+      include: "scope"
+    groups:
+      dev-dependencies:
+        patterns: ["*"]
+        dependency-type: "development"
+
+  # GitHub Actions used by the workflows in .github/workflows.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "ci"
+      include: "scope"

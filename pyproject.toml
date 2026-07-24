@@ -76,15 +76,175 @@ Documentation = "https://github.com/scorpiocodex/watchflow/blob/main/docs/WATCHF
 dev = [
     "pytest>=8.0.0",
     "pytest-asyncio>=0.23.0",
+    "pytest-cov>=5.0.0",       # coverage measurement + --cov-fail-under gate (§4 80% floor)
     "hypothesis>=6.100.0",
     "mypy>=1.10.0",
-    "ruff>=0.5.0",
+    "ruff>=0.6.0",
+    "import-linter>=2.0",      # `lint-imports` — enforces the ARCHITECTURE §2 layering (§3)
+    "pip-audit>=2.7.0",        # dependency vulnerability scan (§7 gate: pip-audit clean)
+    "commitizen>=3.27.0",      # Python-native Conventional Commits check (§5), avoids Node/commitlint
 ]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/watchflow"]
 
 [tool.ruff]
-# Full ruff configuration lands in task 0.2; line length is pinned here now
-# because CODING_STANDARD.md §2 fixes it at 100 columns.
+# CODING_STANDARD.md §2 fixes line length at 100 columns.
 line-length = 100
+target-version = "py312"
+src = ["src", "tests"]
+# docs/ and examples/ hold illustrative (often partial) code snippets, not project
+# source — ruff must not lint or reformat them.
+extend-exclude = ["docs", "examples"]
+
+[tool.ruff.lint]
+# Rule families chosen to mechanically enforce the CODING_STANDARD.md §2 conventions
+# and the §6 forbidden-patterns list. See the task 0.2 report for the §6-item → rule map.
+select = [
+    "E", "W", # pycodestyle — incl. E722 bare-except (§6)
+    "F",      # pyflakes
+    "I",      # isort — import ordering: stdlib → third-party → local (§2)
+    "N",      # pep8-naming (§2 naming conventions)
+    "UP",     # pyupgrade
+    "B",      # flake8-bugbear — incl. B006 mutable-argument-default (§6)
+    "C4",     # flake8-comprehensions
+    "T20",    # flake8-print — print()/pprint() (§6; scoped out of cli/ below)
+    "ASYNC",  # flake8-async — blocking calls inside async def (§6; Constitution Article I)
+    "S",      # flake8-bandit — shell=True (S602/S604/S605), eval (S307), exec (S102) (§6)
+    "TID",    # flake8-tidy-imports — banned-api + absolute-imports only (§2/§6)
+    "SIM",    # flake8-simplify
+    "RUF",    # ruff-specific rules
+    "D",      # pydocstyle — Google convention (§2)
+]
+ignore = [
+    "S603", # subprocess-without-shell — noisy; shell=False exec is the whole design (Article III)
+    "S607", # start-process-with-partial-path — PATH resolution is intended for tool steps
+    "D104", # missing docstring in public package — package __init__ files are thin shims
+]
+
+[tool.ruff.lint.flake8-tidy-imports]
+# §2: absolute imports only within src/watchflow.
+ban-relative-imports = "all"
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+# §6: asyncio.create_subprocess_shell spawns via a shell but carries no shell=True
+# keyword for flake8-bandit to catch, so it is banned here by qualified name.
+"asyncio.create_subprocess_shell".msg = "Use asyncio.create_subprocess_exec (shell=False) — CODING_STANDARD.md §6 / Constitution Article III."
+
+[tool.ruff.lint.isort]
+known-first-party = ["watchflow"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.per-file-ignores]
+# §6 permits print() in the CLI layer only — scope the print ban out of cli/.
+"src/watchflow/cli/**" = ["T20"]
+# Tests may use bare asserts (S101) and need no public-API docstrings.
+"tests/**" = ["S101", "D100", "D101", "D102", "D103", "D105"]
+
+[tool.ruff.format]
+docstring-code-format = true
+
+[tool.mypy]
+# CODING_STANDARD.md §7 gate: mypy --strict, zero errors, CI-blocking.
+python_version = "3.12"
+strict = true
+files = ["src"]
+warn_unused_configs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+show_error_codes = true
+pretty = true
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+asyncio_mode = "auto"            # CODING_STANDARD.md §4
+testpaths = ["tests"]
+addopts = [
+    "--strict-markers",
+    "--strict-config",
+    "--cov=watchflow",
+    "--cov-report=term-missing",
+    "--cov-report=xml",
+    "--cov-branch",              # §4: branch coverage, not just line
+    "--cov-fail-under=80",       # §4: 80% floor, CI-blocking
+]
+
+[tool.coverage.run]
+source = ["watchflow"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+fail_under = 80
+exclude_also = [
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+    "@(abc\\.)?abstractmethod",
+    "\\.\\.\\.",
+]
+
+[tool.commitizen]
+# §5: Conventional Commits, checked in CI via `cz check` (Python-native, no Node).
+name = "cz_conventional_commits"
+version = "0.1.0"
+tag_format = "v$version"
+
+[tool.importlinter]
+# The four contracts below encode the dependency directions of ARCHITECTURE.md §2,
+# implemented per the precise rules in CODING_STANDARD.md §3 and PROJECT_STRUCTURE.md §2.
+# Package names cover their submodules. `config/` is a cross-cutting leaf, left unconstrained.
+root_package = "watchflow"
+
+[[tool.importlinter.contracts]]
+name = "Core must not import the Interface or Extension layers (ARCH sec.2: Interface->Core, Extension->Core)"
+type = "forbidden"
+source_modules = [
+    "watchflow.core",
+    "watchflow.execution",
+    "watchflow.storage",
+    "watchflow.mcp",
+    "watchflow.observability",
+]
+forbidden_modules = [
+    "watchflow.cli",
+    "watchflow.tui",
+    "watchflow.plugins",
+]
+
+[[tool.importlinter.contracts]]
+name = "Core may use the abstract adapter Protocol only, never concrete adapters (ARCH sec.2: Core->Adapter via abstractions)"
+type = "forbidden"
+source_modules = [
+    "watchflow.core",
+    "watchflow.execution",
+    "watchflow.storage",
+    "watchflow.mcp",
+    "watchflow.observability",
+]
+forbidden_modules = [
+    "watchflow.adapters.filesystem",
+    "watchflow.adapters.cron",
+    "watchflow.adapters.manual",
+    "watchflow.adapters.mcp_trigger",
+]
+
+[[tool.importlinter.contracts]]
+name = "Adapter layer must not import anything above it (ARCH sec.2: Adapter->nothing above)"
+type = "forbidden"
+source_modules = ["watchflow.adapters"]
+forbidden_modules = [
+    "watchflow.cli",
+    "watchflow.tui",
+    "watchflow.plugins",
+]
+
+[[tool.importlinter.contracts]]
+name = "Extension layer must not import the Interface layer (ARCH sec.2: Extension->Core only)"
+type = "forbidden"
+source_modules = ["watchflow.plugins"]
+forbidden_modules = [
+    "watchflow.cli",
+    "watchflow.tui",
+]
