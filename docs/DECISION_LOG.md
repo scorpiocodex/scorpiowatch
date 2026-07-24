@@ -29,7 +29,7 @@ Architectural Decision Records (ADRs), newest-relevant-context first within each
 **Status:** Accepted — **2026-07-07**
 **Context:** the original WatchFlow spec scoped the engine to filesystem events only. In practice, every downstream use case that mattered — CI/CD, DevOps automation, and now AI agents calling into local execution via MCP — needed the *same* pipeline (match → schedule → execute → record → observe) applied to event sources that aren't filesystem writes: cron ticks, webhooks, queue messages, git pushes, and MCP tool calls.
 **Decision:** generalize the engine's core abstraction from "file event" to "event," with the filesystem watcher demoted to one Source Adapter among several. The public positioning becomes: *a cross-platform, event-driven workflow orchestration engine for local development, CI/CD, DevOps automation, and MCP-powered AI systems.*
-**Consequences:** this forced two terminology renames (ADR-0004), a new core module (the MCP Gateway, ADR-0005), and a restructuring of the documentation from one monolithic spec into the twelve focused documents indexed in [`WATCHFLOW.md`](./WATCHFLOW.md). No change to the async-first, safe-execution, or event-driven tenets — those generalize unchanged across every event source.
+**Consequences:** this forced two terminology renames (ADR-0004), a new core module (the MCP Gateway, ADR-0005), and a restructuring of the documentation from one monolithic spec into the thirteen focused documents indexed in [`WATCHFLOW.md`](./WATCHFLOW.md). No change to the async-first, safe-execution, or event-driven tenets — those generalize unchanged across every event source.
 
 ---
 

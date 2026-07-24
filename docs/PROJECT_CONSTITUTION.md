@@ -85,7 +85,7 @@ The TUI, and any future web UI, subscribes to the same observability bus every o
 
 Stated explicitly so scope creep has something concrete to be measured against:
 
-- **Not a hosted, multi-tenant SaaS.** WatchFlow is software you run, not a service Anthropic-of-orchestration operates for you. (Optional, opt-in cloud sync for teams is a plugin-layer feature, not the product.)
+- **Not a hosted, multi-tenant SaaS.** WatchFlow is software you run, not a service operated on your behalf. (Optional, opt-in cloud sync for teams is a plugin-layer feature, not the product.)
 - **Not a cluster-scale distributed job scheduler.** WatchFlow orchestrates on one machine, or a small fleet via explicit daemon connections — it does not aim to replace Kubernetes-native workflow engines at cluster scale.
 - **Not a secrets manager.** WatchFlow passes through and scrubs environment variables; it does not store, generate, or rotate secrets.
 - **Not a general-purpose AI agent framework.** WatchFlow orchestrates *around* agents and tools via MCP. It does not implement agent reasoning, memory, or planning.

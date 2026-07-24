@@ -63,14 +63,27 @@ watchflow/
 │           ├── schema.py          # pydantic models for watchflow.toml
 │           └── loader.py
 │
-├── tests/                          # Mirrors src/watchflow/ 1:1
+├── tests/                          # Mirrors src/watchflow/ 1:1 (see §2)
 │   ├── core/
 │   ├── execution/
 │   ├── storage/
+│   │   └── migrations/
 │   ├── mcp/
+│   ├── observability/
 │   ├── adapters/
 │   ├── plugins/
-│   └── cross_platform/            # Linux/macOS/Windows adapter matrix
+│   │   ├── webhook/
+│   │   ├── queue/
+│   │   ├── git/
+│   │   ├── ci/
+│   │   ├── slack/
+│   │   ├── github/
+│   │   └── notify/
+│   ├── cli/
+│   │   └── commands/
+│   ├── tui/
+│   ├── config/
+│   └── cross_platform/            # deliberate addition — no source counterpart (Linux/macOS/Windows adapter matrix)
 │
 ├── examples/                       # Example watchflow.toml configs, one per use case
 │   ├── local-dev/
@@ -90,6 +103,8 @@ watchflow/
 │   ├── EXECUTION_MODEL.md
 │   ├── PLUGIN_SPECIFICATION.md
 │   ├── MCP_INTEGRATION.md
+│   ├── UI_DESIGN.md
+│   ├── watchflow_terminal_mockup_7_views.html   # TUI reference implementation (see UI_DESIGN.md §3.1)
 │   ├── ROADMAP.md
 │   └── DECISION_LOG.md
 │
@@ -99,6 +114,8 @@ watchflow/
 ├── SECURITY.md
 └── LICENSE
 ```
+
+The `tests/` directories are created as their source counterparts are implemented, so the tree describes the target layout, not the state at any given version.
 
 ---
 
