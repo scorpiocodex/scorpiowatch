@@ -120,21 +120,32 @@ jobs:
           --rev-range ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}
 
   ci-gate:
-    # Single aggregation gate for branch protection. Requires every blocking job.
-    # The advisory cross-platform job is intentionally excluded.
+    # Single aggregation gate for branch protection. Requires every blocking job,
+    # including the §7 commit-message gate. The advisory cross-platform job is
+    # intentionally excluded.
     name: ci-gate
     runs-on: ubuntu-latest
-    needs: [lint, typecheck, imports, test, audit]
+    needs: [lint, typecheck, imports, test, audit, commits]
     if: always()
     steps:
       - name: Require all blocking jobs to pass
         run: |
-          results="${{ needs.lint.result }} ${{ needs.typecheck.result }} ${{ needs.imports.result }} ${{ needs.test.result }} ${{ needs.audit.result }}"
-          echo "job results: $results"
-          for r in $results; do
+          strict="${{ needs.lint.result }} ${{ needs.typecheck.result }} ${{ needs.imports.result }} ${{ needs.test.result }} ${{ needs.audit.result }}"
+          commits="${{ needs.commits.result }}"
+          echo "strict jobs: $strict"
+          echo "commits job: $commits"
+          for r in $strict; do
             if [ "$r" != "success" ]; then
-              echo "::error::A required CI job did not succeed."
+              echo "::error::A required CI job did not succeed (got '$r')."
               exit 1
             fi
           done
+          # The commits job runs only on pull_request (see its `if:`), so on push
+          # to main/develop its result is 'skipped', which is acceptable here. Any
+          # other non-success state (failure/cancelled) must still fail the gate —
+          # the strict jobs above are never allowed to be skipped.
+          if [ "$commits" != "success" ] && [ "$commits" != "skipped" ]; then
+            echo "::error::The commit-message gate did not pass (got '$commits')."
+            exit 1
+          fi
           echo "All required CI jobs passed."

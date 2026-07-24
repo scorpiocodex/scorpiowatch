@@ -190,11 +190,26 @@ exclude_also = [
 name = "cz_conventional_commits"
 version = "0.1.0"
 tag_format = "v$version"
+# ROADMAP.md's branch strategy uses --no-ff merges throughout, producing commits
+# like "Merge branch 'develop' into feature/x" that are not Conventional Commits.
+# `cz check` skips any commit whose first line starts with one of these prefixes
+# (check.py falls back to config.settings["allowed_prefixes"] when --allowed-prefixes
+# is not passed). This mirrors commitizen's built-in default but is pinned here so the
+# merge-commit exclusion is explicit and survives any change to that default.
+allowed_prefixes = [
+    "Merge",        # --no-ff merge commits (ROADMAP branch strategy)
+    "Revert",       # `git revert` commits
+    "Pull request", # GitHub merge-commit subject lines
+    "fixup!",       # `git commit --fixup` (pre-autosquash)
+    "squash!",      # `git commit --squash` (pre-autosquash)
+    "amend!",       # rebase amend markers
+]
 
 [tool.importlinter]
-# The four contracts below encode the dependency directions of ARCHITECTURE.md §2,
+# The contracts below encode the dependency directions of ARCHITECTURE.md §2,
 # implemented per the precise rules in CODING_STANDARD.md §3 and PROJECT_STRUCTURE.md §2.
-# Package names cover their submodules. `config/` is a cross-cutting leaf, left unconstrained.
+# Package names cover their submodules. `config/` is a cross-cutting leaf that every
+# layer depends on, so it is constrained to import nothing above it (last contract).
 root_package = "watchflow"
 
 [[tool.importlinter.contracts]]
@@ -247,4 +262,23 @@ source_modules = ["watchflow.plugins"]
 forbidden_modules = [
     "watchflow.cli",
     "watchflow.tui",
+]
+
+[[tool.importlinter.contracts]]
+# PROJECT_STRUCTURE.md sec.2, line: "core/, execution/, storage/, mcp/, and
+# observability/ may depend on ... config/." config/ is "used by all layers"
+# (sec.1), so it is a cross-cutting leaf: every layer depends on it, therefore it
+# must import nothing above it (else a cycle). Forbid the Interface/Extension
+# layers and the concrete adapters (the abstract adapters.base Protocol is allowed).
+name = "Config is a cross-cutting leaf and must not import upward (PROJECT_STRUCTURE sec.2: layers depend on config, never the reverse)"
+type = "forbidden"
+source_modules = ["watchflow.config"]
+forbidden_modules = [
+    "watchflow.cli",
+    "watchflow.tui",
+    "watchflow.plugins",
+    "watchflow.adapters.filesystem",
+    "watchflow.adapters.cron",
+    "watchflow.adapters.manual",
+    "watchflow.adapters.mcp_trigger",
 ]
