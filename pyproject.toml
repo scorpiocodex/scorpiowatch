@@ -1,0 +1,90 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "watchflow"
+version = "0.1.0"
+description = "Cross-platform, event-driven workflow orchestration for local dev, CI/CD, DevOps automation, and MCP-powered AI systems"
+readme = "README.md"
+requires-python = ">=3.12"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "San Shibu", email = "san.shibu7734@gmail.com" }]
+maintainers = [{ name = "San Shibu", email = "san.shibu7734@gmail.com" }]
+keywords = [
+    "async",
+    "asyncio",
+    "automation",
+    "ci-cd",
+    "devops",
+    "event-driven",
+    "file-watcher",
+    "mcp",
+    "orchestration",
+    "workflow",
+]
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: System Administrators",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: Software Development :: Build Tools",
+    "Topic :: System :: Monitoring",
+]
+
+# Core runtime dependencies: only what the v0.1.0 ROADMAP scope actually needs
+# (FilesystemAdapter + ManualAdapter + glob TriggerEngine + single-subprocess
+# Executor + `watchflow run` / `watchflow init`). Everything else in the
+# CODING_STANDARD.md §1 stack is deferred to an optional extra or a later version.
+dependencies = [
+    "typer>=0.12.0",      # CLI framework — `watchflow run` / `watchflow init`
+    "rich>=13.7.0",       # readable CLI output (paired with typer per stack §1)
+    "watchfiles>=0.21.0", # FilesystemAdapter — async-native, Rust-backed
+    "structlog>=24.1.0",  # structured logging (Constitution Article VIII)
+    "pydantic>=2.6.0",    # watchflow.toml schema validation (config layer)
+]
+
+[project.optional-dependencies]
+# The eight extras enumerated in WATCHFLOW.md §1. Only the extras whose concrete
+# package is pinned in CODING_STANDARD.md §1 carry a dependency today; the rest are
+# declared as placeholders and populated when their feature/plugin lands (see ROADMAP).
+tui = ["textual>=0.60.0"]      # optional TUI (stack §1) — ships stable in v5.0.0
+otel = []                      # OpenTelemetry exporter — first-class in v3.1.0
+webhooks = []                  # webhook source-adapter plugin — v2.1.0
+queue = []                     # queue source-adapter plugin — v2.1.0
+git = []                       # git source-adapter plugin — v2.1.0
+ci = []                        # ci-provider source-adapter plugin — v2.1.0
+mcp = ["mcp>=1.0.0"]           # official MCP SDK (stack §1) — server mode in v0.3.0
+all = ["watchflow[tui,otel,webhooks,queue,git,ci,mcp]"]
+
+[project.urls]
+Homepage = "https://github.com/scorpiocodex/watchflow"
+Repository = "https://github.com/scorpiocodex/watchflow"
+Documentation = "https://github.com/scorpiocodex/watchflow/blob/main/docs/WATCHFLOW.md"
+"Bug Tracker" = "https://github.com/scorpiocodex/watchflow/issues"
+
+[dependency-groups]
+# Development toolchain from CODING_STANDARD.md §1 (testing + typing + lint/format).
+# These are dev-only, so they live in a PEP 735 group rather than a runtime extra.
+# Tool *configuration* (ruff rules, mypy strict, coverage gates) lands in task 0.2.
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "hypothesis>=6.100.0",
+    "mypy>=1.10.0",
+    "ruff>=0.5.0",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/watchflow"]
+
+[tool.ruff]
+# Full ruff configuration lands in task 0.2; line length is pinned here now
+# because CODING_STANDARD.md §2 fixes it at 100 columns.
+line-length = 100
