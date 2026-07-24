@@ -96,6 +96,30 @@ The same `Engine` and `DAGExecutor` run identically across four contexts; only t
 
 **MCP-triggered** — `Run`s originating from an AI agent's tool call carry `mcp_origin` provenance (see [`SECURITY_MODEL.md`](./SECURITY_MODEL.md)); destructive `Step`s require explicit `allow_mcp_trigger` and optionally `requires_confirmation`.
 
+### 7.1 Signal handling and graceful shutdown
+
+The crash-only design above is the recovery path when the process dies *without* warning. `SIGTERM` and `SIGINT` are the orderly path, and the daemon and CLI contexts treat them as a **drain-then-escalate** sequence rather than an immediate kill:
+
+- **`SIGTERM` (daemon shutdown — systemd stop, `docker stop`, Kubernetes pod termination).** On the first `SIGTERM` the `Engine` stops admitting new `Run`s — the `Scheduler` quiesces and the Source Adapters `stop()` — while every in-flight `Run` is allowed to **drain** to a terminal state. Draining is bounded by a configurable **shutdown grace period** (`shutdown_grace_s`, default **30s**). If a `Run` is still in `RUNNING` when the grace period expires, it is **escalated to `CANCELLED`**: cancellation propagates through the DAG exactly as in §4, terminating each in-flight `Step`'s subprocess *and its process group* per §6 — not just the awaiting coroutine. A second `SIGTERM` during the grace period skips the remaining wait and escalates immediately.
+- **`SIGINT` (foreground `Ctrl-C`).** In an attached foreground run (Local Dev / CI contexts), the first `SIGINT` begins the same graceful drain as `SIGTERM`; a **second `SIGINT`** forces immediate cancellation of all in-flight `Run`s. This gives the developer a fast "I mean it" without losing the clean-drain default.
+- **Interaction with the state machine.** Runs terminated by either signal resolve to `CANCELLED` (§1), which is recorded in the `EventStore` with its timestamp like any other transition, so a signalled shutdown is fully reconstructable after the fact. Runs that finish draining within the grace period keep their natural terminal state (`SUCCEEDED` / `FAILED` / `TIMED_OUT`). A shutdown never silently drops a `Run` record.
+- **`SIGKILL`** cannot be handled; recovery after it is the crash-only reconciliation path (§7, DevOps Daemon) — the `Engine` reconciles in-flight state against the `EventStore` on next start.
+
+### 7.2 Process exit codes
+
+The CLI exit code is the machine-readable summary of a run, so it composes with CI runners, systemd `Restart=` policies, and container orchestration health logic. The full set:
+
+| Code | Meaning | Emitted when |
+|---|---|---|
+| `0` | Success | All `Run`s in the batch reached `SUCCEEDED` (or `SKIPPED`); a daemon shut down cleanly within its grace window |
+| `1` | Workflow failure | At least one `Run` reached `FAILED` or `TIMED_OUT` — the aggregate signal the CI/CD context (§7) exits on so `--once` / `--profile ci` composes with an existing runner |
+| `2` | Config error | `watchflow.toml` failed schema validation, or a `Workflow` failed cycle detection at `watchflow check` time (§3) and never reached the `Scheduler` |
+| `3` | Usage error | Malformed CLI invocation — unknown command, missing required argument, bad flag (surfaced by the `typer` layer before the `Engine` starts) |
+| `4` | Startup / runtime error | The `Engine` failed to start or continue for an operational reason unrelated to workflow logic — e.g. a health/IPC socket bind failure, or a Source Adapter that could not initialize |
+| `130` | Interrupted | Terminated by `SIGINT` before completion (128 + 2), matching shell convention; the `SIGTERM` analogue is `143` (128 + 15) |
+
+Codes `1` and `2` are the two a CI pipeline distinguishes most often: a `1` means "your workflow ran and something it did failed," a `2` means "WatchFlow could not even accept your configuration." They are kept separate for exactly that reason.
+
 ---
 
 ## 8. Speculative execution

@@ -88,7 +88,8 @@ watchflow/
 ├── examples/                       # Example watchflow.toml configs, one per use case
 │   ├── local-dev/
 │   ├── ci-cd/
-│   ├── devops-daemon/
+│   ├── devops-daemon/          # daemon config + systemd/launchd unit files (ADR-0011)
+│   ├── kubernetes/             # illustrative K8s Deployment manifest with liveness/readiness probes (ADR-0011)
 │   └── mcp-agent/
 │
 ├── docs/                            # This documentation set
@@ -110,6 +111,7 @@ watchflow/
 │
 ├── rfcs/                            # RFC process, active from Core Team governance stage
 │
+├── Dockerfile                       # Official multi-arch image (GHCR, amd64+arm64), built on release tags — ADR-0011
 ├── pyproject.toml
 ├── SECURITY.md
 └── LICENSE
@@ -140,6 +142,20 @@ Enforced by an import-linter contract in CI (see [`CODING_STANDARD.md`](./CODING
 | `.watchflow/plugins.lock` | Resolved plugin versions and granted capabilities |
 | `~/.config/watchflow/` | User-level defaults, applied before project config |
 | `.watchflow/daemon.sock` | Unix socket for daemon-mode IPC (named pipe on Windows) |
+
+### Environment-variable configuration
+
+A container should not have to bake a `watchflow.toml` into its image to be configured, so every value in the `pydantic` config schema (`config/schema.py`) is also settable through the environment.
+
+- **Naming convention:** `WATCHFLOW_` prefix, uppercased key, nested sections joined by a double underscore `__`. Examples: `WATCHFLOW_SCHEDULER__MAX_PARALLEL=8`, `WATCHFLOW_MCP__SERVER__ENABLED=true`, `WATCHFLOW_DAEMON__SHUTDOWN_GRACE_S=45`. Values are parsed and validated against the same schema as their TOML equivalents — an invalid environment value fails fast with the same field-level error a bad `watchflow.toml` would (see [`MODULE_SPECIFICATIONS.md`](./MODULE_SPECIFICATIONS.md) §10).
+- **Precedence (highest wins):**
+  1. Explicit CLI flags
+  2. Environment variables (`WATCHFLOW_*`)
+  3. Project `watchflow.toml`
+  4. User-level defaults (`~/.config/watchflow/`)
+  5. Built-in schema defaults
+
+Environment variables sit *above* both file layers precisely so a container or systemd unit can override any file-provided setting without editing a mounted file, while a developer's explicit CLI flag still wins over an inherited environment.
 
 ---
 
