@@ -81,7 +81,9 @@ No component in this chain needed to know whether its caller was a human, a cron
 | Filesystem events | `inotify` | `FSEvents` | `ReadDirectoryChangesW` |
 | Process spawn | `asyncio.create_subprocess_exec` | same | same (via ProactorEventLoop) |
 | Path handling | POSIX paths, case-sensitive | POSIX paths, case-insensitive by default | `pathlib.PureWindowsPath` normalization at adapter boundary |
-| Daemon mode | systemd unit | launchd plist | Windows Service wrapper |
+| Daemon mode | systemd unit | launchd plist | Windows Service wrapper (planned **v2.0.0** — see [`ROADMAP.md`](./ROADMAP.md)) |
+
+Daemon mode ships first on Linux (`systemd`) and macOS (`launchd`) in v1.1.0; the Windows Service wrapper follows in v2.0.0. The engine itself runs on Windows from v0.3.0 — only the OS-level service integration lags, not Trigger or Workflow behavior, so cross-platform parity (Article II) is unaffected: a foreground `watchflow run` behaves identically on Windows throughout.
 
 Webhook, queue, cron, and MCP adapters are platform-neutral by construction — they never touch OS-specific file-watching APIs, so they need no per-platform code path at all.
 

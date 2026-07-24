@@ -88,8 +88,8 @@ watchflow/
 ├── examples/                       # Example watchflow.toml configs, one per use case
 │   ├── local-dev/
 │   ├── ci-cd/
-│   ├── devops-daemon/          # daemon config + systemd/launchd unit files (ADR-0011)
-│   ├── kubernetes/             # illustrative K8s Deployment manifest with liveness/readiness probes (ADR-0011)
+│   ├── devops-daemon/          # daemon config + systemd/launchd units + container/K8s example (ADR-0011)
+│   │   └── kubernetes/         # illustrative K8s Deployment manifest with liveness/readiness probes
 │   └── mcp-agent/
 │
 ├── docs/                            # This documentation set
