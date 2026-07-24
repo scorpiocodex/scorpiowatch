@@ -1,0 +1,645 @@
+<h2 class="sr-only">WatchFlow interactive terminal mockup with 7 tabbed views: Status dashboard, Stream event feed, Trigger confidence scores, Execute workflow, DAG executor graph, Storage batch writes, and Observe structured logs. Bottom amber status bar shows keybindings.</h2>
+
+<style>
+.wf{font-family:var(--font-mono),ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;background:#0B0D12;border:1px solid #1E2433;border-radius:var(--border-radius-lg);overflow:hidden;color:#C8CCD4;font-size:12px;line-height:1.5}
+.wf-titlebar{background:#0F1219;border-bottom:1px solid #1E2433;padding:8px 14px;display:flex;align-items:center;gap:8px}
+.wf-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.wf-title{color:#8A8F99;margin-left:6px;font-size:11px}
+.wf-meta{margin-left:auto;color:#5A5F69;font-size:10px}
+.wf-tabs{display:flex;background:#0F1219;border-bottom:1px solid #1E2433;font-size:11px;overflow-x:auto;scrollbar-width:none}
+.wf-tabs::-webkit-scrollbar{display:none}
+.wf-tab{padding:9px 12px;color:#5A5F69;cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap;background:none;border-top:none;border-left:none;border-right:none;font-family:inherit;font-size:inherit;transition:color 0.15s}
+.wf-tab:hover{color:#C8CCD4}
+.wf-tab.active{color:#E8B847;border-bottom-color:#C89A30}
+.wf-body{padding:14px;min-height:430px}
+.wf-view{display:none}
+.wf-view.active{display:block}
+.wf-statusbar{background:#C89A30;color:#0B0D12;padding:6px 14px;display:flex;flex-wrap:wrap;gap:12px;font-size:10px;font-weight:500;border-top:1px solid #1E2433;align-items:center}
+.wf-key{background:#0B0D12;color:#E8B847;padding:1px 5px;border-radius:2px;font-weight:500;margin-right:3px}
+.wf-grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px}
+.wf-tile{background:#131722;border:1px solid #1E2433;border-radius:3px;padding:9px}
+.wf-tile-l{color:#8A8F99;font-size:9px;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:4px}
+.wf-tile-v{color:#E8B847;font-size:22px;font-weight:500;font-variant-numeric:tabular-nums;line-height:1}
+.wf-tile-s{color:#5A5F69;font-size:10px;margin-top:4px}
+.wf-tile-trend{color:#5DCAA5;font-size:10px;margin-top:4px}
+.wf-tile-trend.dn{color:#E24B4A}
+.wf-panel{background:#0F1219;border:1px solid #1E2433;border-radius:3px;padding:10px;margin-bottom:10px}
+.wf-panel-h{color:#C89A30;font-size:10px;letter-spacing:0.12em;text-transform:uppercase;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center}
+.wf-panel-h .live{color:#5DCAA5;font-size:9px;display:flex;align-items:center;gap:4px}
+.wf-panel-h .live::before{content:"";width:6px;height:6px;background:#5DCAA5;border-radius:50%;animation:pulse 1.5s infinite}
+.wf-row{display:flex;justify-content:space-between;padding:2px 0;font-size:11px}
+.wf-row span:first-child{color:#8A8F99}
+.wf-row span:last-child{color:#C8CCD4;font-variant-numeric:tabular-nums}
+.wf-bar{background:#1E2433;height:5px;border-radius:1px;overflow:hidden;margin:3px 0}
+.wf-bar-fill{height:100%;background:#C89A30;transition:width 0.6s}
+.wf-feed{background:#0B0D12;border:1px solid #1E2433;border-radius:3px;padding:8px;height:148px;overflow:hidden;font-size:10.5px;line-height:1.55;position:relative}
+.wf-feed-line{padding:1px 0;color:#8A8F99;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wf-feed-line .t{color:#5A5F69;margin-right:8px}
+.wf-feed-line .c{color:#5DCAA5;margin-right:6px}
+.wf-feed-line .m{color:#EF9F27;margin-right:6px}
+.wf-feed-line .d{color:#E24B4A;margin-right:6px}
+.wf-feed-line .p{color:#C8CCD4}
+.wf-two{display:grid;grid-template-columns:1fr 210px;gap:10px}
+.wf-code{background:#0B0D12;border-left:2px solid #C89A30;padding:6px 10px;font-size:11px;color:#C8CCD4;margin:6px 0;border-radius:0;overflow-x:auto}
+.wf-code .kw{color:#C89A30}
+.wf-code .str{color:#5DCAA5}
+.wf-code .num{color:#E8B847}
+.wf-code .com{color:#5A5F69}
+.wf-code .var{color:#85B7EB}
+.wf-stage{display:flex;gap:3px;margin:8px 0;font-size:10px}
+.wf-stage-box{flex:1;background:#131722;border:1px solid #1E2433;padding:7px 4px;text-align:center;border-radius:3px;color:#5A5F69;letter-spacing:0.08em;text-transform:uppercase}
+.wf-stage-box.done{border-color:#0F6E56;color:#5DCAA5;background:#0d1614}
+.wf-stage-box.active{border-color:#C89A30;color:#E8B847;background:#1a1610}
+.wf-stage-arrow{display:flex;align-items:center;color:#5A5F69;padding:0 2px}
+.wf-conf{display:flex;align-items:center;gap:8px;padding:5px 0;font-size:11px}
+.wf-conf-pat{width:140px;color:#C8CCD4;font-size:10.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wf-conf-bar{flex:1;background:#1E2433;height:7px;border-radius:1px;overflow:hidden}
+.wf-conf-fill{height:100%}
+.wf-conf-val{width:36px;text-align:right;font-variant-numeric:tabular-nums;font-size:10.5px}
+.wf-conf-act{width:88px;color:#8A8F99;font-size:10px}
+.wf-pipe{margin:4px 0}
+.wf-pipe-h{display:flex;justify-content:space-between;font-size:10.5px;margin-bottom:3px;color:#8A8F99}
+.wf-pipe-h b{color:#C8CCD4;font-weight:500}
+.wf-tbl{width:100%;border-collapse:collapse;font-size:10.5px}
+.wf-tbl th{text-align:left;color:#8A8F99;font-weight:400;letter-spacing:0.08em;text-transform:uppercase;font-size:9.5px;padding:4px 6px;border-bottom:1px solid #1E2433}
+.wf-tbl td{padding:4px 6px;color:#C8CCD4;border-bottom:1px solid #131722;font-variant-numeric:tabular-nums}
+.wf-tbl td.dim{color:#5A5F69}
+.wf-tbl td.ok{color:#5DCAA5}
+.wf-tbl td.warn{color:#EF9F27}
+.wf-banner{background:#1a1610;border:1px solid #C89A30;border-radius:3px;padding:8px 12px;font-size:11px;color:#E8B847;margin-bottom:10px;display:flex;align-items:center;gap:8px}
+.wf-banner .lbl{background:#C89A30;color:#0B0D12;padding:1px 7px;border-radius:2px;font-size:9px;letter-spacing:0.1em;font-weight:500}
+.wf-log{font-size:10px;line-height:1.6;color:#8A8F99;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:1px 0}
+.wf-log .lvl-i{color:#85B7EB}
+.wf-log .lvl-w{color:#EF9F27}
+.wf-log .lvl-e{color:#E24B4A}
+.wf-log .k{color:#5A5F69}
+.wf-log .s{color:#5DCAA5}
+.wf-log .n{color:#E8B847}
+.wf-log .ts{color:#5A5F69;margin-right:6px}
+.wf-mini{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.pulse{animation:pulse 1.8s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.55}}
+.blink{animation:blink 1s infinite}
+@keyframes blink{0%,49%{opacity:1}50%,100%{opacity:0}}
+.wf-svg-edge{stroke:#1E2433;stroke-width:1.5;fill:none}
+.wf-svg-edge.crit{stroke:#C89A30;stroke-width:2}
+.wf-svg-node{fill:#131722;stroke:#1E2433;stroke-width:1}
+.wf-svg-node.crit{stroke:#C89A30}
+.wf-svg-node.done{fill:#0d1614;stroke:#0F6E56}
+.wf-svg-node.run{fill:#1a1610;stroke:#C89A30}
+.wf-svg-t{fill:#C8CCD4;font-family:var(--font-mono),monospace;font-size:11px}
+.wf-svg-t.crit{fill:#E8B847}
+.wf-svg-t.done{fill:#5DCAA5}
+.wf-svg-t.dim{fill:#8A8F99;font-size:9px}
+</style>
+
+<div class="wf">
+  <div class="wf-titlebar">
+    <div class="wf-dot" style="background:#E24B4A"></div>
+    <div class="wf-dot" style="background:#EF9F27"></div>
+    <div class="wf-dot" style="background:#5DCAA5"></div>
+    <span class="wf-title">watchflow · event-driven workflow orchestration</span>
+    <span class="wf-meta">v1.0.0 · pid 4827 · uptime 02h14m38s</span>
+  </div>
+
+  <div class="wf-tabs" id="wf-tabs">
+    <button class="wf-tab active" data-v="status">◈ Status</button>
+    <button class="wf-tab" data-v="stream">⊕ Stream</button>
+    <button class="wf-tab" data-v="trigger">◎ Trigger</button>
+    <button class="wf-tab" data-v="execute">▷ Execute</button>
+    <button class="wf-tab" data-v="dag">⊞ DAG</button>
+    <button class="wf-tab" data-v="storage">◫ Storage</button>
+    <button class="wf-tab" data-v="observe">◉ Observe</button>
+  </div>
+
+  <div class="wf-body">
+
+    <div class="wf-view active" id="v-status">
+      <div class="wf-grid4">
+        <div class="wf-tile">
+          <div class="wf-tile-l">events/sec</div>
+          <div class="wf-tile-v" id="m-eps">142</div>
+          <div class="wf-tile-trend">▲ 12% vs avg</div>
+        </div>
+        <div class="wf-tile">
+          <div class="wf-tile-l">triggers fired</div>
+          <div class="wf-tile-v" id="m-int">1,847</div>
+          <div class="wf-tile-trend">▲ 38 last min</div>
+        </div>
+        <div class="wf-tile">
+          <div class="wf-tile-l">queue depth</div>
+          <div class="wf-tile-v" id="m-q">23</div>
+          <div class="wf-tile-s">cap 1024 · 2.2%</div>
+        </div>
+        <div class="wf-tile">
+          <div class="wf-tile-l">exec latency</div>
+          <div class="wf-tile-v" id="m-lat">86<span style="font-size:13px;color:#8A8F99">ms</span></div>
+          <div class="wf-tile-trend dn">▼ p95 142ms</div>
+        </div>
+      </div>
+
+      <div class="wf-two">
+        <div>
+          <div class="wf-panel">
+            <div class="wf-panel-h"><span>active workflows · 3</span><span class="live">live</span></div>
+            <div class="wf-pipe">
+              <div class="wf-pipe-h"><b>lint-and-test</b><span id="p1-pct">67%</span></div>
+              <div class="wf-bar"><div class="wf-bar-fill" id="p1-bar" style="width:67%"></div></div>
+            </div>
+            <div class="wf-pipe">
+              <div class="wf-pipe-h"><b>build-frontend</b><span id="p2-pct">34%</span></div>
+              <div class="wf-bar"><div class="wf-bar-fill" id="p2-bar" style="width:34%;background:#EF9F27"></div></div>
+            </div>
+            <div class="wf-pipe">
+              <div class="wf-pipe-h"><b>typecheck-strict</b><span id="p3-pct">91%</span></div>
+              <div class="wf-bar"><div class="wf-bar-fill" id="p3-bar" style="width:91%;background:#5DCAA5"></div></div>
+            </div>
+          </div>
+        </div>
+        <div>
+          <div class="wf-panel" style="height:100%;box-sizing:border-box">
+            <div class="wf-panel-h">engine health</div>
+            <div class="wf-row"><span>backpressure</span><span style="color:#5DCAA5">nominal</span></div>
+            <div class="wf-row"><span>thread leaks</span><span style="color:#5DCAA5">0</span></div>
+            <div class="wf-row"><span>dropped events</span><span style="color:#5DCAA5">0</span></div>
+            <div class="wf-row"><span>plugins loaded</span><span>7</span></div>
+            <div class="wf-row"><span>cooldowns</span><span>12 active</span></div>
+            <div class="wf-row"><span>mcp gateway</span><span style="color:#5DCAA5">serving · stdio</span></div>
+            <div class="wf-row"><span>mem rss</span><span>48.2 MiB</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="wf-panel">
+        <div class="wf-panel-h"><span>recent events</span><span class="live">streaming</span></div>
+        <div class="wf-feed" id="feed-status">
+          <div class="wf-feed-line"><span class="t">14:32:08.412</span><span class="m">MODIFIED</span><span class="p">src/auth/jwt.py</span></div>
+          <div class="wf-feed-line"><span class="t">14:32:08.398</span><span class="c">CREATED</span><span class="p">tests/test_auth.py</span></div>
+          <div class="wf-feed-line"><span class="t">14:32:08.211</span><span class="m">MODIFIED</span><span class="p">src/server.ts</span></div>
+          <div class="wf-feed-line"><span class="t">14:32:07.940</span><span class="d">DELETED</span><span class="p">tmp/cache.lock</span></div>
+          <div class="wf-feed-line"><span class="t">14:32:07.722</span><span class="m">MODIFIED</span><span class="p">pyproject.toml</span></div>
+          <div class="wf-feed-line"><span class="t">14:32:07.508</span><span class="c">CREATED</span><span class="p">docs/api/v2.md</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="wf-view" id="v-stream">
+      <div class="wf-panel-h" style="margin-bottom:10px">
+        <span>EventStream.listen() · async iterator</span>
+        <span class="live">listening</span>
+      </div>
+      <div class="wf-two">
+        <div class="wf-panel">
+          <div class="wf-panel-h">live event feed</div>
+          <div class="wf-feed" id="feed-stream" style="height:240px">
+            <div class="wf-feed-line"><span class="t">14:32:14.901</span><span class="m">MOD</span><span class="p">src/core/bus.py</span></div>
+            <div class="wf-feed-line"><span class="t">14:32:14.887</span><span class="m">MOD</span><span class="p">src/core/scheduler.py</span></div>
+            <div class="wf-feed-line"><span class="t">14:32:14.612</span><span class="c">NEW</span><span class="p">tests/test_bus.py</span></div>
+            <div class="wf-feed-line"><span class="t">14:32:14.341</span><span class="m">MOD</span><span class="p">src/trigger_engine.py</span></div>
+            <div class="wf-feed-line"><span class="t">14:32:13.998</span><span class="m">MOD</span><span class="p">README.md</span></div>
+            <div class="wf-feed-line"><span class="t">14:32:13.770</span><span class="c">NEW</span><span class="p">.github/workflows/ci.yml</span></div>
+            <div class="wf-feed-line"><span class="t">14:32:13.502</span><span class="d">DEL</span><span class="p">build/.cache</span></div>
+            <div class="wf-feed-line"><span class="t">14:32:13.245</span><span class="m">MOD</span><span class="p">src/execution/dag.py</span></div>
+            <div class="wf-feed-line"><span class="t">14:32:12.988</span><span class="m">MOD</span><span class="p">src/execution/executor.py</span></div>
+            <div class="wf-feed-line"><span class="t">14:32:12.677</span><span class="c">NEW</span><span class="p">docs/architecture.md</span></div>
+            <div class="wf-feed-line"><span class="t">14:32:12.401</span><span class="m">MOD</span><span class="p">pyproject.toml</span></div>
+            <div class="wf-feed-line"><span class="t">14:32:12.180</span><span class="m">MOD</span><span class="p">src/storage/event_store.py</span></div>
+          </div>
+        </div>
+        <div>
+          <div class="wf-panel">
+            <div class="wf-panel-h">debounce batcher</div>
+            <div class="wf-row"><span>batch fill</span><span><span id="b-fill">4</span>/16</span></div>
+            <div class="wf-bar"><div class="wf-bar-fill" id="b-bar" style="width:25%"></div></div>
+            <div class="wf-row"><span>window</span><span>250ms</span></div>
+            <div class="wf-row"><span>flushed</span><span id="b-flush">412</span></div>
+            <div class="wf-row"><span>dropped</span><span style="color:#5DCAA5">0</span></div>
+            <div class="wf-row"><span>thread leaks</span><span style="color:#5DCAA5">0</span></div>
+          </div>
+          <div class="wf-panel">
+            <div class="wf-panel-h">backpressure</div>
+            <div class="wf-row"><span>strategy</span><span>bounded</span></div>
+            <div class="wf-row"><span>high water</span><span>768</span></div>
+            <div class="wf-row"><span>low water</span><span>128</span></div>
+            <div class="wf-row"><span>current</span><span style="color:#5DCAA5">23</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="wf-code">
+        <span class="kw">async def</span> <span class="var">listen</span>() <span class="kw">-&gt;</span> AsyncIterator[FileEvent]:
+        <br>&nbsp;&nbsp;<span class="kw">async with</span> <span class="var">watcher</span>.aopen() <span class="kw">as</span> <span class="var">w</span>:
+        <br>&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">async for</span> <span class="var">batch</span> <span class="kw">in</span> <span class="var">debounce</span>(<span class="var">w</span>, window=<span class="num">0.25</span>):
+        <br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">yield from</span> <span class="var">batch</span>&nbsp;&nbsp;<span class="com"># zero blocking, zero threads</span>
+      </div>
+    </div>
+
+    <div class="wf-view" id="v-trigger">
+      <div class="wf-panel-h" style="margin-bottom:10px">
+        <span>TriggerEngine.detect() · pattern → confidence → trigger</span>
+        <span class="live">scoring</span>
+      </div>
+      <div class="wf-panel">
+        <div class="wf-panel-h">confidence scores · last 5 batches</div>
+        <div class="wf-conf">
+          <span class="wf-conf-pat">*.py modified</span>
+          <div class="wf-conf-bar"><div class="wf-conf-fill" style="width:94%;background:#5DCAA5"></div></div>
+          <span class="wf-conf-val" style="color:#5DCAA5">0.94</span>
+          <span class="wf-conf-act">→ run-pytest</span>
+        </div>
+        <div class="wf-conf">
+          <span class="wf-conf-pat">*.ts modified</span>
+          <div class="wf-conf-bar"><div class="wf-conf-fill" style="width:87%;background:#5DCAA5"></div></div>
+          <span class="wf-conf-val" style="color:#5DCAA5">0.87</span>
+          <span class="wf-conf-act">→ run-tsc</span>
+        </div>
+        <div class="wf-conf">
+          <span class="wf-conf-pat">pyproject.toml mod</span>
+          <div class="wf-conf-bar"><div class="wf-conf-fill" style="width:78%;background:#5DCAA5"></div></div>
+          <span class="wf-conf-val" style="color:#5DCAA5">0.78</span>
+          <span class="wf-conf-act">→ uv-lock</span>
+        </div>
+        <div class="wf-conf">
+          <span class="wf-conf-pat">Dockerfile changed</span>
+          <div class="wf-conf-bar"><div class="wf-conf-fill" style="width:61%;background:#EF9F27"></div></div>
+          <span class="wf-conf-val" style="color:#EF9F27">0.61</span>
+          <span class="wf-conf-act">→ docker-build</span>
+        </div>
+        <div class="wf-conf">
+          <span class="wf-conf-pat">*.log written</span>
+          <div class="wf-conf-bar"><div class="wf-conf-fill" style="width:32%;background:#E24B4A"></div></div>
+          <span class="wf-conf-val" style="color:#E24B4A">0.32</span>
+          <span class="wf-conf-act" style="color:#E24B4A">skipped (&lt;0.50)</span>
+        </div>
+        <div style="font-size:10px;color:#5A5F69;margin-top:8px;padding-top:8px;border-top:1px solid #1E2433">
+          threshold = 0.50 · scoring = pattern + recency + history
+        </div>
+      </div>
+      <div class="wf-two">
+        <div class="wf-panel">
+          <div class="wf-panel-h">pattern registry · 14 active</div>
+          <div class="wf-row"><span>**/*.py</span><span style="color:#5DCAA5">run-pytest</span></div>
+          <div class="wf-row"><span>**/*.ts | *.tsx</span><span style="color:#5DCAA5">run-tsc</span></div>
+          <div class="wf-row"><span>**/*.rs</span><span style="color:#5DCAA5">cargo-check</span></div>
+          <div class="wf-row"><span>**/Dockerfile</span><span style="color:#EF9F27">docker-build</span></div>
+          <div class="wf-row"><span>**/*.proto</span><span style="color:#5DCAA5">buf-generate</span></div>
+          <div class="wf-row"><span>**/*.md</span><span style="color:#8A8F99">render-preview</span></div>
+        </div>
+        <div class="wf-panel">
+          <div class="wf-panel-h">LRU cache</div>
+          <div class="wf-row"><span>hit ratio</span><span style="color:#5DCAA5">78.4%</span></div>
+          <div class="wf-bar"><div class="wf-bar-fill" style="width:78%;background:#5DCAA5"></div></div>
+          <div class="wf-row"><span>entries</span><span>512 / 1024</span></div>
+          <div class="wf-row"><span>hits</span><span>14,201</span></div>
+          <div class="wf-row"><span>misses</span><span>3,914</span></div>
+          <div class="wf-row"><span>evictions</span><span>12</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="wf-view" id="v-execute">
+      <div class="wf-panel-h" style="margin-bottom:10px">
+        <span>Executor.run_step(step) · strict subprocess model</span>
+        <span class="live">executing</span>
+      </div>
+      <div class="wf-panel">
+        <div class="wf-panel-h">workflow stage flow · lint-and-test</div>
+        <div class="wf-stage">
+          <div class="wf-stage-box done">ingest</div>
+          <div class="wf-stage-arrow">→</div>
+          <div class="wf-stage-box done">detect</div>
+          <div class="wf-stage-arrow">→</div>
+          <div class="wf-stage-box done">schedule</div>
+          <div class="wf-stage-arrow">→</div>
+          <div class="wf-stage-box active">execute<span class="blink"> ▮</span></div>
+          <div class="wf-stage-arrow">→</div>
+          <div class="wf-stage-box">observe</div>
+        </div>
+      </div>
+      <div class="wf-panel">
+        <div class="wf-panel-h">subprocess · safe model</div>
+        <div class="wf-code">
+          <span class="com"># asyncio.create_subprocess_exec · shell=False · args=list[str]</span>
+          <br><span class="kw">await</span> asyncio.create_subprocess_exec(
+          <br>&nbsp;&nbsp;<span class="str">"pytest"</span>, <span class="str">"tests/"</span>, <span class="str">"-x"</span>, <span class="str">"--tb=short"</span>,
+          <br>&nbsp;&nbsp;stdout=PIPE, stderr=PIPE, env=<span class="var">sandbox_env</span>,
+          <br>)
+        </div>
+        <div style="display:flex;gap:14px;font-size:10px;color:#8A8F99;margin:8px 0">
+          <span>pid <span style="color:#E8B847">9412</span></span>
+          <span>uid <span style="color:#C8CCD4">1000</span></span>
+          <span>shell <span style="color:#5DCAA5">False</span></span>
+          <span>argv <span style="color:#5DCAA5">list[str]</span></span>
+          <span>timeout <span style="color:#C8CCD4">30s</span></span>
+        </div>
+        <div class="wf-pipe-h"><b>progress</b><span id="ex-pct">43%</span></div>
+        <div class="wf-bar"><div class="wf-bar-fill" id="ex-bar" style="width:43%"></div></div>
+        <div style="font-size:10.5px;color:#8A8F99;margin-top:6px">
+          <span class="t" style="color:#5A5F69">14:32:14.012</span>
+          tests/test_bus.py::test_publish_subscribe <span style="color:#5DCAA5">PASSED</span>
+          <span style="color:#5A5F69">[18/42]</span>
+        </div>
+      </div>
+      <div class="wf-mini">
+        <div class="wf-panel">
+          <div class="wf-panel-h">rate limit · scheduler</div>
+          <div class="wf-row"><span>tokens</span><span>8 / 10</span></div>
+          <div class="wf-row"><span>cooldown</span><span>2.4s</span></div>
+          <div class="wf-row"><span>dedupe key</span><span style="color:#85B7EB">sha256:7b3a…</span></div>
+        </div>
+        <div class="wf-panel">
+          <div class="wf-panel-h">safety</div>
+          <div class="wf-row"><span>shell fallback</span><span style="color:#5DCAA5">disabled</span></div>
+          <div class="wf-row"><span>argv parsed</span><span style="color:#5DCAA5">strict</span></div>
+          <div class="wf-row"><span>cwd jailed</span><span style="color:#5DCAA5">yes</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="wf-view" id="v-dag">
+      <div class="wf-panel-h" style="margin-bottom:10px">
+        <span>DAGExecutor.execute(graph) · parallel fan-out · critical path</span>
+        <span class="live">running 3</span>
+      </div>
+      <div class="wf-panel">
+        <svg viewBox="0 0 640 240" width="100%" height="240" role="img" aria-label="DAG: trigger fans out to mypy, pytest and bandit which all merge into report then notify; the critical path through pytest is highlighted amber">
+          <defs>
+            <marker id="arr" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto">
+              <path d="M0,0 L8,4 L0,8 z" fill="#1E2433"/>
+            </marker>
+            <marker id="arr-c" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto">
+              <path d="M0,0 L8,4 L0,8 z" fill="#C89A30"/>
+            </marker>
+          </defs>
+          <path class="wf-svg-edge" d="M100,128 Q140,128 165,55" marker-end="url(#arr)"/>
+          <path class="wf-svg-edge crit" d="M100,128 L165,128" marker-end="url(#arr-c)"/>
+          <path class="wf-svg-edge" d="M100,128 Q140,128 165,200" marker-end="url(#arr)"/>
+          <path class="wf-svg-edge" d="M280,55 Q320,55 345,128" marker-end="url(#arr)"/>
+          <path class="wf-svg-edge crit" d="M280,128 L345,128" marker-end="url(#arr-c)"/>
+          <path class="wf-svg-edge" d="M280,200 Q320,200 345,128" marker-end="url(#arr)"/>
+          <path class="wf-svg-edge crit" d="M445,128 L500,128" marker-end="url(#arr-c)"/>
+          <rect class="wf-svg-node done" x="20" y="110" width="80" height="36" rx="4"/>
+          <text class="wf-svg-t done" x="60" y="125" text-anchor="middle">trigger</text>
+          <text class="wf-svg-t dim" x="60" y="138" text-anchor="middle">file event</text>
+          <rect class="wf-svg-node done" x="180" y="36" width="100" height="36" rx="4"/>
+          <text class="wf-svg-t done" x="230" y="51" text-anchor="middle">mypy</text>
+          <text class="wf-svg-t dim" x="230" y="64" text-anchor="middle">done · 2.1s</text>
+          <rect class="wf-svg-node run crit" x="180" y="110" width="100" height="36" rx="4"/>
+          <text class="wf-svg-t crit" x="230" y="125" text-anchor="middle">pytest</text>
+          <text class="wf-svg-t dim" x="230" y="138" text-anchor="middle">running · 4.8s</text>
+          <rect class="wf-svg-node run" x="180" y="184" width="100" height="36" rx="4"/>
+          <text class="wf-svg-t" x="230" y="199" text-anchor="middle">bandit</text>
+          <text class="wf-svg-t dim" x="230" y="212" text-anchor="middle">running · 1.2s</text>
+          <rect class="wf-svg-node crit" x="360" y="110" width="85" height="36" rx="4"/>
+          <text class="wf-svg-t crit" x="402" y="125" text-anchor="middle">report</text>
+          <text class="wf-svg-t dim" x="402" y="138" text-anchor="middle">queued</text>
+          <rect class="wf-svg-node crit" x="500" y="110" width="85" height="36" rx="4"/>
+          <text class="wf-svg-t crit" x="542" y="125" text-anchor="middle">notify</text>
+          <text class="wf-svg-t dim" x="542" y="138" text-anchor="middle">queued</text>
+          <text class="wf-svg-t dim" x="20" y="20">critical path · 7.2s estimated</text>
+          <line x1="180" y1="22" x2="200" y2="22" stroke="#C89A30" stroke-width="2"/>
+        </svg>
+      </div>
+      <div class="wf-mini">
+        <div class="wf-panel">
+          <div class="wf-panel-h">graph stats</div>
+          <div class="wf-row"><span>nodes</span><span>5</span></div>
+          <div class="wf-row"><span>edges</span><span>7</span></div>
+          <div class="wf-row"><span>parallelism</span><span>3</span></div>
+          <div class="wf-row"><span>critical path</span><span style="color:#E8B847">7.2s</span></div>
+        </div>
+        <div class="wf-panel">
+          <div class="wf-panel-h">node states</div>
+          <div class="wf-row"><span style="color:#5DCAA5">● done</span><span>1</span></div>
+          <div class="wf-row"><span style="color:#E8B847">● running</span><span>2</span></div>
+          <div class="wf-row"><span style="color:#8A8F99">● queued</span><span>2</span></div>
+          <div class="wf-row"><span style="color:#E24B4A">● failed</span><span>0</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="wf-view" id="v-storage">
+      <div class="wf-panel-h" style="margin-bottom:10px">
+        <span>EventStore · aiosqlite · batched async writes</span>
+        <span class="live">writing</span>
+      </div>
+      <div class="wf-grid4">
+        <div class="wf-tile">
+          <div class="wf-tile-l">writes/sec</div>
+          <div class="wf-tile-v">312</div>
+          <div class="wf-tile-s">batch avg 48</div>
+        </div>
+        <div class="wf-tile">
+          <div class="wf-tile-l">batch p50</div>
+          <div class="wf-tile-v">2.1<span style="font-size:13px;color:#8A8F99">ms</span></div>
+          <div class="wf-tile-s">p95 4.4ms</div>
+        </div>
+        <div class="wf-tile">
+          <div class="wf-tile-l">db size</div>
+          <div class="wf-tile-v">38<span style="font-size:13px;color:#8A8F99">MB</span></div>
+          <div class="wf-tile-s">retention 7d</div>
+        </div>
+        <div class="wf-tile">
+          <div class="wf-tile-l">wal mode</div>
+          <div class="wf-tile-v" style="color:#5DCAA5;font-size:18px">on</div>
+          <div class="wf-tile-s">sync=normal</div>
+        </div>
+      </div>
+      <div class="wf-panel">
+        <div class="wf-panel-h">recent batch writes</div>
+        <table class="wf-tbl">
+          <thead><tr><th>time</th><th>batch</th><th>rows</th><th>bytes</th><th>latency</th><th>status</th></tr></thead>
+          <tbody>
+            <tr><td class="dim">14:32:14.901</td><td>b_2841</td><td>52</td><td>12.4K</td><td>2.1ms</td><td class="ok">committed</td></tr>
+            <tr><td class="dim">14:32:14.612</td><td>b_2840</td><td>48</td><td>11.8K</td><td>1.8ms</td><td class="ok">committed</td></tr>
+            <tr><td class="dim">14:32:14.341</td><td>b_2839</td><td>44</td><td>10.9K</td><td>2.4ms</td><td class="ok">committed</td></tr>
+            <tr><td class="dim">14:32:13.998</td><td>b_2838</td><td>51</td><td>12.1K</td><td>3.1ms</td><td class="ok">committed</td></tr>
+            <tr><td class="dim">14:32:13.770</td><td>b_2837</td><td>49</td><td>11.6K</td><td>2.0ms</td><td class="ok">committed</td></tr>
+            <tr><td class="dim">14:32:13.502</td><td>b_2836</td><td>50</td><td>11.9K</td><td>2.2ms</td><td class="ok">committed</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="wf-panel">
+        <div class="wf-panel-h">schema · events</div>
+        <div class="wf-code">
+          <span class="kw">CREATE TABLE</span> events (
+          <br>&nbsp;&nbsp;<span class="var">id</span> <span class="kw">INTEGER PRIMARY KEY</span> <span class="kw">AUTOINCREMENT</span>,
+          <br>&nbsp;&nbsp;<span class="var">ts</span> <span class="kw">REAL NOT NULL</span>,&nbsp;&nbsp;&nbsp;&nbsp;<span class="com"># unix epoch ns</span>
+          <br>&nbsp;&nbsp;<span class="var">kind</span> <span class="kw">TEXT NOT NULL</span>,&nbsp;&nbsp;<span class="com"># created | modified | deleted</span>
+          <br>&nbsp;&nbsp;<span class="var">path</span> <span class="kw">TEXT NOT NULL</span>,
+          <br>&nbsp;&nbsp;<span class="var">trigger_id</span> <span class="kw">TEXT</span>,
+          <br>&nbsp;&nbsp;<span class="var">payload</span> <span class="kw">BLOB</span>&nbsp;&nbsp;&nbsp;&nbsp;<span class="com"># msgpack</span>
+          <br>);
+          <br><span class="kw">CREATE INDEX</span> idx_events_ts <span class="kw">ON</span> events(ts <span class="kw">DESC</span>);
+        </div>
+      </div>
+    </div>
+
+    <div class="wf-view" id="v-observe">
+      <div class="wf-banner">
+        <span class="lbl">phase 5</span>
+        <span>TUI is an optional component · core engine runs headless · install with <span style="color:#5DCAA5">pip install watchflow[tui]</span></span>
+      </div>
+      <div class="wf-panel">
+        <div class="wf-panel-h"><span>structlog · structured stream</span><span class="live">streaming</span></div>
+        <div class="wf-feed" id="feed-log" style="height:160px">
+          <div class="wf-log"><span class="ts">14:32:14.901</span><span class="lvl-i">info</span> <span class="k">event=</span>scheduler.dispatch <span class="k">trigger=</span><span class="s">run-pytest</span> <span class="k">pid=</span><span class="n">9412</span></div>
+          <div class="wf-log"><span class="ts">14:32:14.887</span><span class="lvl-i">info</span> <span class="k">event=</span>trigger.detected <span class="k">conf=</span><span class="n">0.94</span> <span class="k">pattern=</span><span class="s">*.py</span></div>
+          <div class="wf-log"><span class="ts">14:32:14.612</span><span class="lvl-i">info</span> <span class="k">event=</span>stream.batch <span class="k">size=</span><span class="n">12</span> <span class="k">window=</span><span class="n">250ms</span></div>
+          <div class="wf-log"><span class="ts">14:32:14.341</span><span class="lvl-w">warn</span> <span class="k">event=</span>scheduler.cooldown <span class="k">key=</span><span class="s">docker-build</span> <span class="k">remaining=</span><span class="n">2.4s</span></div>
+          <div class="wf-log"><span class="ts">14:32:13.998</span><span class="lvl-i">info</span> <span class="k">event=</span>store.commit <span class="k">batch=</span><span class="s">b_2838</span> <span class="k">latency_ms=</span><span class="n">3.1</span></div>
+          <div class="wf-log"><span class="ts">14:32:13.770</span><span class="lvl-i">info</span> <span class="k">event=</span>plugin.loaded <span class="k">name=</span><span class="s">watchflow-slack</span> <span class="k">v=</span><span class="s">0.4.0</span></div>
+          <div class="wf-log"><span class="ts">14:32:13.502</span><span class="lvl-i">info</span> <span class="k">event=</span>engine.tick <span class="k">eps=</span><span class="n">142</span> <span class="k">queue=</span><span class="n">23</span></div>
+        </div>
+      </div>
+      <div class="wf-two">
+        <div class="wf-panel">
+          <div class="wf-panel-h">async metrics</div>
+          <div class="wf-row"><span>ingest tasks</span><span>4</span></div>
+          <div class="wf-bar"><div class="wf-bar-fill" style="width:40%"></div></div>
+          <div class="wf-row"><span>scheduler tasks</span><span>2</span></div>
+          <div class="wf-bar"><div class="wf-bar-fill" style="width:20%"></div></div>
+          <div class="wf-row"><span>executor tasks</span><span>3</span></div>
+          <div class="wf-bar"><div class="wf-bar-fill" style="width:30%;background:#EF9F27"></div></div>
+          <div class="wf-row"><span>storage tasks</span><span>1</span></div>
+          <div class="wf-bar"><div class="wf-bar-fill" style="width:10%"></div></div>
+        </div>
+        <div class="wf-panel">
+          <div class="wf-panel-h">exporters</div>
+          <div class="wf-row"><span>structlog</span><span style="color:#5DCAA5">on</span></div>
+          <div class="wf-row"><span>prometheus</span><span style="color:#5DCAA5">on :9100</span></div>
+          <div class="wf-row"><span>otlp</span><span style="color:#8A8F99">off</span></div>
+          <div class="wf-row"><span>journald</span><span style="color:#8A8F99">off</span></div>
+          <div class="wf-row"><span>mcp gateway</span><span style="color:#5DCAA5">serving</span></div>
+          <div class="wf-row"><span>tui (this)</span><span style="color:#E8B847">attached</span></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="wf-statusbar">
+    <span><span class="wf-key">q</span>quit</span>
+    <span><span class="wf-key">⇥</span>next</span>
+    <span><span class="wf-key">1-7</span>jump</span>
+    <span><span class="wf-key">/</span>search</span>
+    <span><span class="wf-key">r</span>reload</span>
+    <span><span class="wf-key">p</span>pause</span>
+    <span><span class="wf-key">f</span>filter</span>
+    <span><span class="wf-key">?</span>help</span>
+    <span style="margin-left:auto;display:flex;align-items:center;gap:5px"><span style="width:7px;height:7px;background:#0B0D12;border-radius:50%" class="pulse"></span>RUNNING</span>
+  </div>
+</div>
+
+<script>
+(function(){
+  const tabs = document.querySelectorAll('#wf-tabs .wf-tab');
+  const views = {
+    status: document.getElementById('v-status'),
+    stream: document.getElementById('v-stream'),
+    trigger: document.getElementById('v-trigger'),
+    execute: document.getElementById('v-execute'),
+    dag: document.getElementById('v-dag'),
+    storage: document.getElementById('v-storage'),
+    observe: document.getElementById('v-observe')
+  };
+  tabs.forEach(t => {
+    t.addEventListener('click', () => {
+      tabs.forEach(x => x.classList.remove('active'));
+      Object.values(views).forEach(v => v.classList.remove('active'));
+      t.classList.add('active');
+      views[t.dataset.v].classList.add('active');
+    });
+  });
+
+  function rand(min, max){ return Math.floor(Math.random() * (max - min + 1)) + min; }
+  function fmt(n){ return n.toLocaleString('en-US'); }
+
+  let eps = 142, ints = 1847, qd = 23, lat = 86;
+  let p1 = 67, p2 = 34, p3 = 91, ex = 43;
+  let bfill = 4, bflush = 412;
+
+  setInterval(() => {
+    eps = Math.max(80, Math.min(220, eps + rand(-12, 14)));
+    ints += rand(2, 8);
+    qd = Math.max(8, Math.min(64, qd + rand(-3, 4)));
+    lat = Math.max(40, Math.min(180, lat + rand(-8, 9)));
+    const a = document.getElementById('m-eps'); if(a) a.textContent = eps;
+    const b = document.getElementById('m-int'); if(b) b.textContent = fmt(ints);
+    const c = document.getElementById('m-q'); if(c) c.textContent = qd;
+    const d = document.getElementById('m-lat');
+    if(d) d.innerHTML = lat + '<span style="font-size:13px;color:#8A8F99">ms</span>';
+  }, 1800);
+
+  setInterval(() => {
+    p1 = Math.min(100, p1 + rand(0, 3));
+    p2 = Math.min(100, p2 + rand(0, 2));
+    p3 = Math.min(100, p3 + rand(0, 2));
+    ex = Math.min(100, ex + rand(0, 3));
+    if(p1 >= 100) p1 = rand(5, 25);
+    if(p2 >= 100) p2 = rand(5, 25);
+    if(p3 >= 100) p3 = rand(5, 25);
+    if(ex >= 100) ex = rand(5, 25);
+    const u = (id, val) => { const el = document.getElementById(id); if(el) el.style.width = val + '%'; };
+    const t = (id, val) => { const el = document.getElementById(id); if(el) el.textContent = val + '%'; };
+    u('p1-bar', p1); t('p1-pct', p1);
+    u('p2-bar', p2); t('p2-pct', p2);
+    u('p3-bar', p3); t('p3-pct', p3);
+    u('ex-bar', ex); t('ex-pct', ex);
+  }, 1400);
+
+  const streamPaths = ['src/core/bus.py','tests/test_scheduler.py','src/trigger_engine.py','pyproject.toml','docs/api.md','src/storage/event_store.py','README.md','.github/workflows/ci.yml','src/execution/dag.py','src/observability/metrics.py','tests/test_executor.py','src/ingestion/stream.py'];
+  const kinds = [['MOD','m'],['NEW','c'],['DEL','d'],['MOD','m'],['MOD','m']];
+  function ts(){
+    const d = new Date();
+    return d.toTimeString().slice(0,8) + '.' + String(d.getMilliseconds()).padStart(3,'0');
+  }
+  function pushFeed(id, line, max){
+    const f = document.getElementById(id);
+    if(!f) return;
+    f.insertBefore(line, f.firstChild);
+    while(f.children.length > max) f.removeChild(f.lastChild);
+  }
+
+  setInterval(() => {
+    const k = kinds[rand(0, kinds.length - 1)];
+    const p = streamPaths[rand(0, streamPaths.length - 1)];
+    const line = document.createElement('div');
+    line.className = 'wf-feed-line';
+    line.innerHTML = '<span class="t">' + ts() + '</span><span class="' + k[1] + '">' + k[0] + '</span><span class="p">' + p + '</span>';
+    pushFeed('feed-stream', line, 14);
+    pushFeed('feed-status', line.cloneNode(true), 7);
+    bfill = Math.min(16, bfill + 1);
+    if(bfill >= 16){ bfill = 0; bflush += 1; }
+    const bf = document.getElementById('b-fill'); if(bf) bf.textContent = bfill;
+    const bb = document.getElementById('b-bar'); if(bb) bb.style.width = (bfill / 16 * 100) + '%';
+    const bx = document.getElementById('b-flush'); if(bx) bx.textContent = bflush;
+  }, 2100);
+
+  const logs = [
+    ['info','event=scheduler.dispatch trigger=run-tsc pid=9418'],
+    ['info','event=trigger.detected conf=0.87 pattern=*.ts'],
+    ['info','event=stream.batch size=8 window=250ms'],
+    ['warn','event=executor.timeout warn=approaching limit=30s elapsed=24.2s'],
+    ['info','event=store.commit batch=b_2842 latency_ms=2.4'],
+    ['info','event=dag.node.complete name=mypy duration=2.1s'],
+    ['info','event=mcp.tool_call tool=trigger_workflow origin=inbound run=r_5117'],
+    ['info','event=engine.tick eps=148 queue=21']
+  ];
+  setInterval(() => {
+    const l = logs[rand(0, logs.length - 1)];
+    const line = document.createElement('div');
+    line.className = 'wf-log';
+    const parts = l[1].split(' ');
+    let html = '<span class="ts">' + ts() + '</span><span class="lvl-' + l[0][0] + '">' + l[0] + '</span> ';
+    parts.forEach(p => {
+      if(p.includes('=')){
+        const [k, v] = p.split('=');
+        const isNum = /^\d/.test(v);
+        html += '<span class="k">' + k + '=</span><span class="' + (isNum ? 'n' : 's') + '">' + v + '</span> ';
+      } else html += p + ' ';
+    });
+    line.innerHTML = html;
+    pushFeed('feed-log', line, 9);
+  }, 2400);
+})();
+</script>
