@@ -45,16 +45,16 @@ Every arrow is an `async` boundary. Every box is independently testable in isola
 
 ## 2. Layered view
 
-WatchFlow is organized in four layers, each only permitted to depend on the layer below it (enforced in CI — see [`CODING_STANDARD.md`](./CODING_STANDARD.md)):
+WatchFlow is organized in four layers, each permitted to depend only on the layers below it (enforced in CI — see [`CODING_STANDARD.md`](./CODING_STANDARD.md)):
 
 | Layer | Contains | Depends on |
 |---|---|---|
 | **Interface** | CLI, TUI, MCP server surface, embeddable `Engine` API | Core |
 | **Extension** | Plugins: adapters, step kinds, exporters, MCP tool bindings | Core (via stable plugin API only) |
-| **Core** | EventBus, TriggerEngine, Scheduler, DAGExecutor, EventStore, MCP Gateway | Adapter layer (via abstractions only) |
-| **Adapter** | Platform- and protocol-specific I/O: `inotify`/`FSEvents`/`ReadDirectoryChangesW`, HTTP listener, MQ client, MCP transport | Nothing above |
+| **Adapter** | Platform- and protocol-specific I/O: `inotify`/`FSEvents`/`ReadDirectoryChangesW`, HTTP listener, MQ client, MCP transport | Core (the `SourceAdapter` Protocol in `core/ports.py`) |
+| **Core** | EventBus, TriggerEngine, Scheduler, DAGExecutor, EventStore, MCP Gateway; owns the `SourceAdapter` Protocol (`core/ports.py`) and the domain models | Nothing below it |
 
-The core never imports a concrete platform API directly — it depends on an abstract `SourceAdapter` interface, satisfied by whichever adapter is active. This is what makes cross-platform parity (Article II of the constitution) a structural property instead of a testing discipline.
+The core never imports a concrete platform API directly — it declares the abstract `SourceAdapter` Protocol it needs (`core/ports.py`, ADR-0010 Option A), and each concrete adapter imports and implements it, so the dependency runs adapter → core and never the reverse. This is what makes cross-platform parity (Article II of the constitution) a structural property instead of a testing discipline.
 
 ---
 

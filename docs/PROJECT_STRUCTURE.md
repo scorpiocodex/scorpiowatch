@@ -10,11 +10,13 @@
 watchflow/
 ├── src/
 │   └── watchflow/
-│       ├── core/                  # Layer: Core — no concrete platform/plugin imports
+│       ├── core/                  # Layer: Core — owns domain models + ports; no concrete platform/plugin imports
 │       │   ├── events.py          # Event envelope, EventBus
+│       │   ├── ports.py           # SourceAdapter Protocol (ADR-0010 Option A)
 │       │   ├── triggers.py        # Trigger model, TriggerEngine
 │       │   ├── scheduler.py       # Rate-limit, dedupe, cooldown, speculative exec
 │       │   ├── workflow.py        # Workflow, Step models
+│       │   ├── config.py          # WatchflowConfig model (ADR-0012)
 │       │   └── engine.py          # Engine — the public embeddable entry point
 │       │
 │       ├── execution/              # Layer: Core — DAG + step execution
@@ -59,9 +61,8 @@ watchflow/
 │       ├── tui/                      # Layer: Interface — optional extra: [tui]
 │       │   └── app.py              # textual application
 │       │
-│       └── config/                   # Config loading + validation (used by all layers)
-│           ├── schema.py          # pydantic models for watchflow.toml
-│           └── loader.py
+│       └── config/                   # Layer: Config — pure loader; returns core-owned WatchflowConfig (ADR-0012)
+│           └── loader.py           # parse + validate watchflow.toml → core.config.WatchflowConfig
 │
 ├── tests/                          # Mirrors src/watchflow/ 1:1 (see §2)
 │   ├── core/
@@ -125,8 +126,9 @@ The `tests/` directories are created as their source counterparts are implemente
 
 Enforced by an import-linter contract in CI (see [`CODING_STANDARD.md`](./CODING_STANDARD.md)):
 
-- `core/`, `execution/`, `storage/`, `mcp/`, and `observability/` may depend on each other and on `adapters/base.py` (the abstract `Protocol` only), and on `config/`.
-- `adapters/*` (concrete implementations) may depend on `core/` abstractions but never the reverse.
+- `core/`, `execution/`, `storage/`, `mcp/`, and `observability/` (the Core layer) may depend on each other and on nothing above them: the `SourceAdapter` Protocol they consume lives in `core/ports.py` (ADR-0010 Option A) and the domain models (`Trigger`, `Workflow`, `Step`, `WatchflowConfig`) live in `core/` (ADR-0012), so the Core layer imports nothing from `adapters/`, `config/`, `plugins/`, `cli/`, or `tui/`.
+- `config/` is a pure loader that imports the core-owned `WatchflowConfig` and returns it; the dependency is one-way, `config → core` (ADR-0012). It defines no domain models of its own.
+- `adapters/*` (concrete implementations) may depend on `core/` — including the `SourceAdapter` Protocol in `core/ports.py` — but never the reverse.
 - `plugins/*` may depend on the stable plugin API surface only (re-exported from `core/`), never on internal core modules directly.
 - `cli/` and `tui/` may depend on everything below them, but nothing below depends on either.
 - `tests/` mirrors `src/watchflow/` exactly, one test module per source module minimum.
@@ -145,7 +147,7 @@ Enforced by an import-linter contract in CI (see [`CODING_STANDARD.md`](./CODING
 
 ### Environment-variable configuration
 
-A container should not have to bake a `watchflow.toml` into its image to be configured, so every value in the `pydantic` config schema (`config/schema.py`) is also settable through the environment.
+A container should not have to bake a `watchflow.toml` into its image to be configured, so every value in the `pydantic` config schema (`WatchflowConfig`, in `core/config.py` — ADR-0012) is also settable through the environment.
 
 - **Naming convention:** `WATCHFLOW_` prefix, uppercased key, nested sections joined by a double underscore `__`. Examples: `WATCHFLOW_SCHEDULER__MAX_PARALLEL=8`, `WATCHFLOW_MCP__SERVER__ENABLED=true`, `WATCHFLOW_DAEMON__SHUTDOWN_GRACE_S=45`. Values are parsed and validated against the same schema as their TOML equivalents — an invalid environment value fails fast with the same field-level error a bad `watchflow.toml` would (see [`MODULE_SPECIFICATIONS.md`](./MODULE_SPECIFICATIONS.md) §10).
 - **Precedence (highest wins):**

@@ -22,6 +22,8 @@ Architectural Decision Records (ADRs), newest-relevant-context first within each
 **Decision:** `asyncio.create_subprocess_exec` only, `argv` as `list[str]`, enforced by a custom CI-blocking lint rule.
 **Consequences:** slightly more verbose config for multi-command shell pipelines (must be expressed as DAG steps instead of `&&`-joined strings) in exchange for eliminating an entire vulnerability class outright.
 
+*Erratum (2026-07-25): "custom lint rule" is imprecise — enforcement is ruff's built-in flake8-bandit S602/S604/S605 plus a banned-api entry; ruff has no custom-rule API. The decision itself is unchanged.*
+
 ---
 
 ## ADR-0003 — Broaden scope from filesystem-only reactive engine to cross-platform event-driven workflow orchestration
