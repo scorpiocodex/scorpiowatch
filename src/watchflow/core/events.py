@@ -1,8 +1,7 @@
 """Core event types: the ``Event`` envelope every Source Adapter emits.
 
-See ``MODULE_SPECIFICATIONS.md`` §2. This module defines the domain ``Event`` only;
-the ``EventBus`` that carries it is a later addition (task 1.1) and is intentionally
-absent from this structural skeleton.
+See ``MODULE_SPECIFICATIONS.md`` §2. This module defines the domain ``Event``; the
+bounded ``EventBus`` that carries it is implemented alongside this envelope in task 1.1.
 """
 
 from datetime import datetime
