@@ -6,9 +6,9 @@ Each entry: purpose, public interface, invariants, and testing notes. Signatures
 
 ---
 
-## 1. `SourceAdapter` (base) — `adapters/base.py`
+## 1. `SourceAdapter` (port) — `core/ports.py`
 
-**Purpose:** the abstract contract every event source implements, so the core never knows which concrete source produced an `Event`.
+**Purpose:** the abstract contract every event source implements, so the core never knows which concrete source produced an `Event`. The Protocol is owned by the Core layer (`core/ports.py`, ADR-0010 Option A); the concrete adapters in `adapters/` import and implement it.
 
 ```python
 class SourceAdapter(Protocol):
@@ -167,13 +167,13 @@ Three independent exporters, all subscribing to the same internal observability 
 
 ---
 
-## 10. `ConfigLoader` — `config/loader.py`, `config/schema.py`
+## 10. `ConfigLoader` — `config/loader.py`
 
 ```python
 def load(path: Path) -> WatchflowConfig: ...
 ```
 
-**Purpose:** parses and validates `watchflow.toml` against the `pydantic` schema; the schema is the single source of truth for what a valid config looks like — the CLI's `watchflow check` command is a thin wrapper over this same loader.
+**Purpose:** parses and validates `watchflow.toml` and returns the core-owned `WatchflowConfig` (defined in `core/config.py` — ADR-0012); `config/` is a pure loader that defines no models of its own. `WatchflowConfig` is the single source of truth for what a valid config looks like — the CLI's `watchflow check` command is a thin wrapper over this same loader.
 
 **Invariants:** invalid config fails fast with a precise, field-level error message — never a partially-applied configuration.
 

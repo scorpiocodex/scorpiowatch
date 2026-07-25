@@ -206,79 +206,34 @@ allowed_prefixes = [
 ]
 
 [tool.importlinter]
-# The contracts below encode the dependency directions of ARCHITECTURE.md §2,
-# implemented per the precise rules in CODING_STANDARD.md §3 and PROJECT_STRUCTURE.md §2.
-# Package names cover their submodules. `config/` is a cross-cutting leaf that every
-# layer depends on, so it is constrained to import nothing above it (last contract).
+# One `layers` contract now encodes the whole architecture, replacing the five
+# hand-written `forbidden` contracts from task 0.2. This is possible only after
+# ADR-0010 Option A: with the `SourceAdapter` Protocol moved into the core
+# (`core/ports.py`), the core imports nothing from `adapters/`, so the Core/Adapter
+# boundary is unidirectional and the dependency graph is a strict total order — which
+# a `layers` contract requires (task 0.2 could not express this and fell back to
+# `forbidden` rules). ADR-0012 additionally makes `config -> core` one-way (the models
+# the core needs now live in the core), so the core no longer imports `config/` either.
+#
+# Layers are listed highest to lowest: a higher layer may import lower layers, never
+# the reverse. Within one layer:
+#   - "a | b"  = independent siblings (may NOT import each other)
+#   - "a : b"  = non-independent siblings (MAY import each other)
+# The Interface layer (`cli`, `tui`) and the Core layer (core/execution/storage/mcp/
+# observability, which "may depend on each other" per PROJECT_STRUCTURE.md §2) use ":".
+# `exhaustive` guarantees every top-level package is placed in a layer — no future
+# package can silently escape the architecture.
 root_package = "watchflow"
 
 [[tool.importlinter.contracts]]
-name = "Core must not import the Interface or Extension layers (ARCH sec.2: Interface->Core, Extension->Core)"
-type = "forbidden"
-source_modules = [
-    "watchflow.core",
-    "watchflow.execution",
-    "watchflow.storage",
-    "watchflow.mcp",
-    "watchflow.observability",
+name = "WatchFlow layered architecture (ARCHITECTURE sec.2; ADR-0010 Option A; ADR-0012)"
+type = "layers"
+containers = ["watchflow"]
+layers = [
+    "cli : tui",
+    "plugins",
+    "adapters",
+    "config",
+    "core : execution : storage : mcp : observability",
 ]
-forbidden_modules = [
-    "watchflow.cli",
-    "watchflow.tui",
-    "watchflow.plugins",
-]
-
-[[tool.importlinter.contracts]]
-name = "Core may use the abstract adapter Protocol only, never concrete adapters (ARCH sec.2: Core->Adapter via abstractions)"
-type = "forbidden"
-source_modules = [
-    "watchflow.core",
-    "watchflow.execution",
-    "watchflow.storage",
-    "watchflow.mcp",
-    "watchflow.observability",
-]
-forbidden_modules = [
-    "watchflow.adapters.filesystem",
-    "watchflow.adapters.cron",
-    "watchflow.adapters.manual",
-    "watchflow.adapters.mcp_trigger",
-]
-
-[[tool.importlinter.contracts]]
-name = "Adapter layer must not import anything above it (ARCH sec.2: Adapter->nothing above)"
-type = "forbidden"
-source_modules = ["watchflow.adapters"]
-forbidden_modules = [
-    "watchflow.cli",
-    "watchflow.tui",
-    "watchflow.plugins",
-]
-
-[[tool.importlinter.contracts]]
-name = "Extension layer must not import the Interface layer (ARCH sec.2: Extension->Core only)"
-type = "forbidden"
-source_modules = ["watchflow.plugins"]
-forbidden_modules = [
-    "watchflow.cli",
-    "watchflow.tui",
-]
-
-[[tool.importlinter.contracts]]
-# PROJECT_STRUCTURE.md sec.2, line: "core/, execution/, storage/, mcp/, and
-# observability/ may depend on ... config/." config/ is "used by all layers"
-# (sec.1), so it is a cross-cutting leaf: every layer depends on it, therefore it
-# must import nothing above it (else a cycle). Forbid the Interface/Extension
-# layers and the concrete adapters (the abstract adapters.base Protocol is allowed).
-name = "Config is a cross-cutting leaf and must not import upward (PROJECT_STRUCTURE sec.2: layers depend on config, never the reverse)"
-type = "forbidden"
-source_modules = ["watchflow.config"]
-forbidden_modules = [
-    "watchflow.cli",
-    "watchflow.tui",
-    "watchflow.plugins",
-    "watchflow.adapters.filesystem",
-    "watchflow.adapters.cron",
-    "watchflow.adapters.manual",
-    "watchflow.adapters.mcp_trigger",
-]
+exhaustive = true

@@ -12,6 +12,7 @@
 | CLI framework | `typer` + `rich` | Typed commands, readable output, plays well with `--json` |
 | Filesystem adapter | `watchfiles` (Rust-backed) | Async-native, no thread bridge |
 | Async SQLite | `aiosqlite` | Non-blocking writes, WAL mode |
+| HTTP client | `httpx` | Async-native, HTTP/2; webhook/queue/CI adapters and MCP HTTP transport |
 | Logging | `structlog` | Structured, JSON-able, contextual |
 | Validation | `pydantic` v2 | Config schema, plugin contracts, MCP tool schemas |
 | Testing | `pytest` + `pytest-asyncio` + `hypothesis` | Async tests + property tests for scheduler/DAG |
@@ -35,7 +36,7 @@
 
 ## 3. Layering enforcement
 
-The four architectural layers in [`ARCHITECTURE.md`](./ARCHITECTURE.md) are enforced mechanically, not just by convention — an import-linter contract in CI fails the build if `watchflow.core` imports anything from `watchflow.adapters.*` concretely (it may only import the abstract adapter `Protocol`), and if `watchflow.core` imports anything from `watchflow.plugins.*` or `watchflow.cli`.
+The four architectural layers in [`ARCHITECTURE.md`](./ARCHITECTURE.md) are enforced mechanically, not just by convention — a single import-linter `layers` contract in CI fails the build whenever a lower layer imports a higher one. In particular `watchflow.core` imports nothing from `watchflow.adapters.*` (the `SourceAdapter` Protocol it needs lives in `watchflow.core.ports` — ADR-0010 Option A), nothing from `watchflow.config` (the direction is one-way, `config → core` — ADR-0012), and nothing from `watchflow.plugins.*`, `watchflow.cli`, or `watchflow.tui`.
 
 ---
 
@@ -56,7 +57,7 @@ Conventional Commits: `<type>(<scope>): <subject>`.
 Types: `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`, `perf`, `ci`, `build`, `revert`.
 Scope: the module name (e.g., `scheduler`, `mcp`, `dag`, `cli`).
 
-Enforced via `commitlint` in CI. Example: `feat(mcp): add get_run_status tool to server gateway`.
+Enforced via `commitizen` (`cz check`) in CI. Example: `feat(mcp): add get_run_status tool to server gateway`.
 
 ---
 
@@ -64,7 +65,7 @@ Enforced via `commitlint` in CI. Example: `feat(mcp): add get_run_status tool to
 
 CI-blocking, no exceptions:
 
-- `shell=True` anywhere, in any form (`subprocess.run`, `subprocess.Popen`, `asyncio.create_subprocess_shell`) — enforced by a custom `ruff` rule.
+- `shell=True` anywhere, in any form (`subprocess.run`, `subprocess.Popen`, `asyncio.create_subprocess_shell`) — enforced by `ruff`'s built-in flake8-bandit rules `S602`/`S604`/`S605`, plus a flake8-tidy-imports banned-api entry for `asyncio.create_subprocess_shell` (which spawns via a shell but carries no `shell=True` keyword for bandit to catch). `ruff` exposes no user-authored-rule API — this is built-in rules plus a banned-api entry, not a custom rule.
 - Bare `except:` (must catch a specific exception type, or `except Exception` with an explicit re-raise/log).
 - `print()` for anything other than CLI-layer user-facing output — core and adapter code uses `structlog` exclusively.
 - Mutable default arguments (`def f(x=[])`).
