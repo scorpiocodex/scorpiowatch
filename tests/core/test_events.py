@@ -4,6 +4,9 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID, uuid4
 
+import pytest
+from pydantic import ValidationError
+
 from watchflow.core.events import Event
 
 
@@ -59,6 +62,12 @@ def test_json_round_trip_preserves_every_field() -> None:
 def test_id_accepts_a_uuid_string_and_coerces_it() -> None:
     raw = "12345678-1234-5678-1234-567812345678"
     assert make_event(id=raw).id == UUID(raw)
+
+
+def test_event_is_frozen_attribute_reassignment_raises() -> None:
+    event = make_event()
+    with pytest.raises(ValidationError):
+        event.source = "cron"
 
 
 def test_declares_exactly_the_specified_fields() -> None:

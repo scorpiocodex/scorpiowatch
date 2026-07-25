@@ -17,13 +17,17 @@ from typing import Any
 from uuid import UUID
 
 import structlog
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 _log = structlog.get_logger(__name__)
 
 
 class Event(BaseModel):
     """A normalized event emitted by a Source Adapter onto the EventBus.
+
+    Frozen (immutable): one ``Event`` is fanned out to multiple subscriber queues by
+    reference, so it must not be mutable in place. Note that ``frozen`` blocks attribute
+    reassignment but not in-place mutation of the ``payload``/``metadata`` dicts.
 
     Attributes:
         id: Stable unique identifier for this event.
@@ -33,6 +37,8 @@ class Event(BaseModel):
         timestamp: When the event was observed.
         metadata: Optional provenance/context annotations; defaults to empty.
     """
+
+    model_config = ConfigDict(frozen=True)
 
     id: UUID
     source: str
@@ -116,6 +122,9 @@ class EventBus:
         Returns:
             An async iterator over the events delivered to this subscriber.
         """
+        # The topic filter key is ``event.type`` (see the match in ``publish``). If a
+        # future subscriber needs to filter by ``event.source`` (or another field),
+        # that predicate is the single extension point — widen it here and in ``publish``.
         channel = _Channel(topic, self._maxsize)
         self._channels.add(channel)
         return self._consume(channel)

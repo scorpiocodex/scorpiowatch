@@ -161,6 +161,11 @@ pretty = true
 minversion = "8.0"
 asyncio_mode = "auto"            # CODING_STANDARD.md §4
 testpaths = ["tests"]
+markers = [
+    # Real-filesystem tests driven by watchfiles. Linux-first for v0.1.0 (ROADMAP);
+    # they run on macOS/Windows too but CI treats those as advisory (CODING_STANDARD §4).
+    "filesystem: exercises a real filesystem watch via watchfiles",
+]
 addopts = [
     "--strict-markers",
     "--strict-config",

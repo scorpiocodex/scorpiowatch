@@ -32,6 +32,8 @@ class SourceAdapter(Protocol):
 
 ```python
 class Event(BaseModel):
+    model_config = ConfigDict(frozen=True)  # immutable — safely fanned out by reference
+
     id: UUID
     source: str
     type: str
