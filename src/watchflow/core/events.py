@@ -122,9 +122,12 @@ class EventBus:
         Returns:
             An async iterator over the events delivered to this subscriber.
         """
-        # The topic filter key is ``event.type`` (see the match in ``publish``). If a
-        # future subscriber needs to filter by ``event.source`` (or another field),
-        # that predicate is the single extension point — widen it here and in ``publish``.
+        # The topic filter key is ``event.type`` (see the match in ``publish``). The
+        # TriggerEngine deliberately does NOT use it: it subscribes with ``topic=None``
+        # and gates on ``event.source`` itself (task 1.2), keeping all matching logic in
+        # one place and the bus general. So this ``event.type`` filter stands unchanged;
+        # if a future subscriber ever needs source (or another field) filtering *in the
+        # bus*, this predicate and ``publish`` are the single extension point.
         channel = _Channel(topic, self._maxsize)
         self._channels.add(channel)
         return self._consume(channel)

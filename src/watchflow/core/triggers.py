@@ -6,15 +6,21 @@ variants §3 names (``glob | cron_expr | predicate | mcp_tool_name``). For v0.1.
 scoring** (``ROADMAP.md`` v0.1.0: "TriggerEngine with glob patterns, no scoring yet";
 scoring arrives in v0.2.0). The other three variants are present in the union but raise
 ``NotImplementedError`` until their roadmap version.
+
+The ``TriggerEngine`` also drives matching off the ``EventBus``: :meth:`TriggerEngine.evaluate`
+subscribes to the bus, runs the pure :meth:`TriggerEngine.matching_triggers` on each event,
+and emits a :class:`TriggerFired` per match to a sink. Nothing is scheduled or executed here
+(that is task 1.3+); a match yields a ``TriggerFired`` and nothing more.
 """
 
 import re
+from collections.abc import AsyncGenerator, Awaitable, Callable
 from functools import lru_cache
-from typing import Annotated, Literal
+from typing import Annotated, Literal, cast
 
 from pydantic import BaseModel, Field
 
-from watchflow.core.events import Event
+from watchflow.core.events import Event, EventBus
 from watchflow.core.workflow import Workflow
 
 
@@ -186,15 +192,35 @@ class Trigger(BaseModel):
     workflow: Workflow
 
 
+class TriggerFired(BaseModel):
+    """The result of a Trigger matching an Event, emitted for the Scheduler to admit.
+
+    ``MODULE_SPECIFICATIONS.md`` §3 names ``TriggerFired`` as ``evaluate``'s output but
+    does not enumerate its fields; these are the minimum the downstream Scheduler needs
+    — §4's ``admit``/dedupe keys on ``trigger.name`` and ``event.payload``, so a fired
+    record carries the Trigger that matched and the Event that caused it. A confidence
+    ``score`` joins these when scoring lands in v0.2.0 (``ROADMAP.md``); v0.1.0 matching
+    is boolean, so a ``TriggerFired`` existing *is* the match.
+
+    Attributes:
+        trigger: The Trigger that matched.
+        event: The Event that caused the match.
+    """
+
+    trigger: Trigger
+    event: Event
+
+
 class TriggerEngine:
-    """Holds the registered Triggers and reports which ones match an Event.
+    """Hold the Triggers, report which match an Event, and drive matching off the bus.
 
     v0.1.0 scope (``ROADMAP.md``): boolean glob matching only — **no confidence
     scoring**. A Trigger matches an Event when its ``source`` equals ``event.source`` and
-    its ``MatchSpec`` matches. Confidence scoring (``pattern_match * recency *
-    history_weight``, ``MODULE_SPECIFICATIONS.md`` §3) and the async, bus-driven
-    ``evaluate`` that yields ``TriggerFired`` records arrive in later tasks; this class
-    is deliberately pure (no bus, no async, no I/O).
+    its ``MatchSpec`` matches. :meth:`matching_triggers` is a pure function of the
+    registry and an event; :meth:`evaluate` is the async driver that subscribes to the
+    bus and emits a ``TriggerFired`` per match to a sink. Confidence scoring
+    (``pattern_match * recency * history_weight``, ``MODULE_SPECIFICATIONS.md`` §3), and
+    the scheduling/execution a ``TriggerFired`` eventually feeds, arrive in later tasks.
     """
 
     def __init__(self) -> None:
@@ -232,3 +258,29 @@ class TriggerEngine:
             for trigger in self._triggers
             if trigger.source == event.source and trigger.match.matches(event)
         ]
+
+    async def evaluate(
+        self, bus: EventBus, on_fired: Callable[[TriggerFired], Awaitable[None]]
+    ) -> None:
+        """Consume events from ``bus`` and emit a ``TriggerFired`` per matching Trigger.
+
+        This is the async, bus-driven form of ``MODULE_SPECIFICATIONS.md`` §3's
+        ``evaluate`` (whose illustrative signature is per-event and returns a single
+        ``TriggerFired | None``): it subscribes to the bus with ``topic=None`` — the
+        engine gates on ``event.source`` in :meth:`matching_triggers`, not on the bus's
+        ``event.type`` topic — and for each event awaits ``on_fired`` once per matching
+        Trigger, in registration order. It runs until the awaiting task is cancelled,
+        at which point the subscription is closed and the bus subscriber is removed. No
+        scheduling or execution happens here; a match yields a ``TriggerFired`` only.
+
+        Args:
+            bus: The EventBus to consume events from.
+            on_fired: An async sink awaited once per ``TriggerFired``.
+        """
+        subscription = cast(AsyncGenerator[Event, None], bus.subscribe())
+        try:
+            async for event in subscription:
+                for trigger in self.matching_triggers(event):
+                    await on_fired(TriggerFired(trigger=trigger, event=event))
+        finally:
+            await subscription.aclose()
