@@ -32,12 +32,14 @@ class SourceAdapter(Protocol):
 
 ```python
 class Event(BaseModel):
+    model_config = ConfigDict(frozen=True)  # immutable — safely fanned out by reference
+
     id: UUID
     source: str
     type: str
     payload: dict[str, Any]
     timestamp: datetime
-    metadata: dict[str, Any] = {}
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 class EventBus:
     def __init__(self, maxsize: int, backpressure: BackpressureStrategy): ...
