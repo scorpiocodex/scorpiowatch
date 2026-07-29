@@ -179,6 +179,8 @@ def load(path: Path) -> WatchflowConfig: ...
 
 **Invariants:** invalid config fails fast with a precise, field-level error message — never a partially-applied configuration.
 
+**v0.1.0 mapping note — pattern expansion:** a `[[trigger]]` declares `patterns` as a *list* of globs, but a core `Trigger` (§3) holds a single `MatchSpec`. The loader therefore expands one trigger with N patterns into **N core `Trigger`s** — one `GlobMatch` each, sharing the trigger's name and Workflow. This keeps the core model single-match (no spec-absent "match any of N" variant is introduced). The consequence, until dedupe lands in v0.3.0 (§4), is that a single event matching M of a trigger's patterns fires the shared Workflow M times; overlapping patterns should be avoided until then. (Keys *inside* a `[[trigger]]` are validated strictly — an unknown key is an error — while unknown *top-level* sections such as a future `[mcp]` are ignored so a forward-looking config still loads.)
+
 ---
 
 ## 11. `Engine` — `core/engine.py`

@@ -50,6 +50,10 @@ dependencies = [
     "pydantic>=2.6.0",    # watchflow.toml schema validation (config layer)
 ]
 
+[project.scripts]
+# The console entry point: `watchflow ...` runs the typer CLI (run / init in v0.1.0).
+watchflow = "watchflow.cli.main:main"
+
 [project.optional-dependencies]
 # The eight extras enumerated in WATCHFLOW.md §1. Only the extras whose concrete
 # package is pinned in CODING_STANDARD.md §1 carry a dependency today; the rest are

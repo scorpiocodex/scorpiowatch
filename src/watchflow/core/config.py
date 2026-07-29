@@ -19,8 +19,16 @@ class WatchflowConfig(BaseModel):
     """The top-level validated configuration parsed from ``watchflow.toml``.
 
     The domain aggregate the ``Engine`` consumes (``MODULE_SPECIFICATIONS.md`` §11) and
-    the config loader returns (§10). Structural skeleton (task 0.3): the scheduler,
-    MCP, and daemon sections are added with the loader in task 1.1.
+    the config loader returns (§10). Per ADR-0012 ``config/`` owns no models of its own:
+    :func:`watchflow.config.loader.load` reads the ergonomic ``watchflow.toml`` and *maps*
+    it onto the core-owned models (``Trigger``/``Workflow``/``Step``), so this aggregate is
+    simply the list of fully-built ``Trigger``s the loader produced — the mapping (plural
+    ``patterns`` → per-pattern ``Trigger``s, default step ``kind``, supplied names) lives in
+    the loader, not in a second parallel schema here.
+
+    For v0.1.0 the only section modelled is ``[[trigger]]``; the ``scheduler``, ``mcp``, and
+    ``daemon`` sections named in ``PROJECT_STRUCTURE.md`` §3 arrive with their features in
+    later versions and any such unknown top-level section is ignored by the loader for now.
 
     Attributes:
         triggers: The declared triggers (each carrying its Workflow); empty by default.
