@@ -17,9 +17,10 @@ from typing import Annotated
 import typer
 
 from watchflow.adapters.filesystem import FilesystemAdapter
-from watchflow.cli.console import console, err_console
+from watchflow.cli.console import err_console
 from watchflow.cli.exit_codes import ExitCode
 from watchflow.cli.log import configure_logging
+from watchflow.cli.reporter import OutputMode, RunReporter
 from watchflow.config.loader import ConfigError, load
 from watchflow.core.config import WatchflowConfig
 from watchflow.core.engine import Engine, EngineStartupError
@@ -56,11 +57,21 @@ def run(
     ] = False,
     verbose: Annotated[
         bool,
-        typer.Option("--verbose", "-v", help="Raise the log level to DEBUG."),
+        typer.Option("--verbose", "-v", help="Show full engine records and stream all output."),
+    ] = False,
+    quiet: Annotated[
+        bool,
+        typer.Option("--quiet", "-q", help="Only the final tally, plus output of any failure."),
+    ] = False,
+    as_json: Annotated[
+        bool,
+        typer.Option("--json", help="Machine output: one JSON event per line, output included."),
     ] = False,
 ) -> None:
     """Start the engine: watch PATH and run each Trigger's Workflow on a match."""
-    configure_logging(verbose=verbose)
+    mode = _resolve_mode(verbose=verbose, quiet=quiet, as_json=as_json)
+    configure_logging(verbose=mode is OutputMode.VERBOSE)
+    reporter = RunReporter(mode)
     config_path = config if config is not None else path / "watchflow.toml"
 
     try:
@@ -69,10 +80,10 @@ def run(
         _render_config_error(error, config_path)
         raise typer.Exit(int(ExitCode.CONFIG_ERROR)) from error
 
-    _print_banner(cfg, path, config_path, once=once)
+    reporter.banner(cfg, path, config_path, once=once)
 
     try:
-        code = asyncio.run(_serve(cfg, path, once=once))
+        code = asyncio.run(_serve(cfg, path, reporter, once=once))
     except EngineStartupError as error:
         err_console.print(f"  [failure]✗ startup error[/failure]  {error}")
         raise typer.Exit(int(ExitCode.STARTUP_ERROR)) from error
@@ -80,14 +91,32 @@ def run(
     raise typer.Exit(code)
 
 
-async def _serve(cfg: WatchflowConfig, path: Path, *, once: bool) -> int:
+def _resolve_mode(*, verbose: bool, quiet: bool, as_json: bool) -> OutputMode:
+    """Pick the output mode from the flags (``--json`` wins; ``--verbose``/``--quiet`` exclusive).
+
+    Raises:
+        typer.BadParameter: If both ``--verbose`` and ``--quiet`` are given (a usage error →
+            exit 3), since they ask for opposite amounts of output.
+    """
+    if as_json:
+        return OutputMode.JSON
+    if verbose and quiet:
+        raise typer.BadParameter("--verbose and --quiet are mutually exclusive")
+    if verbose:
+        return OutputMode.VERBOSE
+    if quiet:
+        return OutputMode.QUIET
+    return OutputMode.DEFAULT
+
+
+async def _serve(cfg: WatchflowConfig, path: Path, reporter: RunReporter, *, once: bool) -> int:
     """Run the Engine to completion under signal handling; return the §7.2 exit code."""
     adapter = FilesystemAdapter(path, debounce_ms=_DEBOUNCE_MS, step_ms=_STEP_MS)
-    engine = Engine(cfg, sources=[adapter])
+    engine = Engine(cfg, sources=[adapter], reporter=reporter)
     signals = _ShutdownSignals(engine)
     _install_signal_handlers(asyncio.get_running_loop(), signals.on_signal)
     await engine.run(once=once)
-    _print_summary(engine.records)
+    reporter.summary(engine.records)
     return _exit_code(signals.count, engine.records)
 
 
@@ -142,41 +171,6 @@ def _aggregate_exit(records: Sequence[Run]) -> ExitCode:
     if any(record.state in _FAILED_STATES for record in records):
         return ExitCode.WORKFLOW_FAILURE
     return ExitCode.SUCCESS
-
-
-def _print_banner(cfg: WatchflowConfig, path: Path, config_path: Path, *, once: bool) -> None:
-    """Print the engine-starting banner (config summary + what is being watched)."""
-    workflows = len({trigger.workflow.name for trigger in cfg.triggers})
-    console.print()
-    console.print("  [bold]watchflow[/bold]  ·  engine starting")
-    console.print()
-    console.print(
-        f"  [success]✓[/success] config loaded    {config_path}  ·  "
-        f"{len(cfg.triggers)} triggers, {workflows} workflows"
-    )
-    if once:
-        console.print(f"  running once over [bold]{path}[/bold]  ·  first match, then exit")
-    else:
-        console.print(
-            f"  watching [bold]{path}[/bold]  ·  {len(cfg.triggers)} triggers armed  ·  ^C to stop"
-        )
-    console.print()
-
-
-def _print_summary(records: Sequence[Run]) -> None:
-    """Print a one-line tally of the runs this invocation produced."""
-    if not records:
-        console.print("  [muted]no runs[/muted]")
-        return
-    succeeded = sum(1 for record in records if record.state is RunState.SUCCEEDED)
-    failed = sum(1 for record in records if record.state in _FAILED_STATES)
-    cancelled = sum(1 for record in records if record.state is RunState.CANCELLED)
-    console.print()
-    console.print(
-        f"  processed {len(records)} run(s): "
-        f"[success]{succeeded} succeeded[/success], "
-        f"[failure]{failed} failed[/failure], {cancelled} cancelled"
-    )
 
 
 def _render_config_error(error: ConfigError, config_path: Path) -> None:

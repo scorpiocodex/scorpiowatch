@@ -27,9 +27,17 @@ from uuid import UUID, uuid4
 
 import structlog
 
+from watchflow.core.reporting import RunReporter
 from watchflow.core.triggers import TriggerFired
 from watchflow.core.workflow import Workflow
-from watchflow.execution.executor import Executor, RunContext, RunResult, RunState
+from watchflow.execution.executor import (
+    Executor,
+    OutputChunk,
+    OutputSink,
+    RunContext,
+    RunResult,
+    RunState,
+)
 
 _log = structlog.get_logger(__name__)
 
@@ -75,6 +83,7 @@ class Scheduler:
         *,
         max_parallel: int = 4,
         default_cooldown_ms: int = 0,
+        reporter: RunReporter | None = None,
     ) -> None:
         """Create a Scheduler driving ``executor`` with at most ``max_parallel`` runs.
 
@@ -84,6 +93,9 @@ class Scheduler:
             max_parallel: Upper bound on concurrently-executing runs; must be positive.
             default_cooldown_ms: The §4 default cooldown window. Stored but **not enforced**
                 in v0.1.0 — cooldown is a v0.3.0 control (see :meth:`_admission_blocked`).
+            reporter: Optional :class:`~watchflow.core.reporting.RunReporter` narrated as each
+                run starts, streams output, and finishes (the CLI's output layer). ``None``
+                runs silently.
 
         Raises:
             ValueError: If ``max_parallel`` is not positive.
@@ -93,6 +105,7 @@ class Scheduler:
         self._executor = executor if executor is not None else Executor()
         self._max_parallel = max_parallel
         self._default_cooldown_ms = default_cooldown_ms
+        self._reporter = reporter
         self._semaphore = asyncio.Semaphore(max_parallel)
         self._tasks: dict[UUID, asyncio.Task[None]] = {}
         self._records: list[Run] = []
@@ -188,7 +201,13 @@ class Scheduler:
         try:
             async with self._semaphore:
                 run.state = RunState.RUNNING
-                result = await self._executor.run(workflow, RunContext(run_id=run.run_id))
+                if self._reporter is not None:
+                    self._reporter.run_started(run)
+                result = await self._executor.run(
+                    workflow,
+                    RunContext(run_id=run.run_id),
+                    on_output=self._output_sink(run),
+                )
             run.state = result.state
             run.result = result
         except asyncio.CancelledError:
@@ -203,12 +222,29 @@ class Scheduler:
         finally:
             self._tasks.pop(run.run_id, None)
             self._records.append(run)
+            if self._reporter is not None:
+                self._reporter.run_finished(run)
             _log.info(
                 "run.recorded",
                 run_id=str(run.run_id),
                 trigger=run.trigger_name,
                 state=run.state.value,
             )
+
+    def _output_sink(self, run: Run) -> OutputSink | None:
+        """Bind the reporter's output sink to ``run`` so each chunk carries its run identity.
+
+        Returns ``None`` when no reporter is attached, so the Executor skips the live hand-off
+        entirely (still draining and retaining as ever).
+        """
+        reporter = self._reporter
+        if reporter is None:
+            return None
+
+        async def sink(chunk: OutputChunk) -> None:
+            await reporter.on_output(run, chunk)
+
+        return sink
 
     async def drain(self) -> None:
         """Wait for every in-flight run to reach a terminal state (no cancellation)."""
