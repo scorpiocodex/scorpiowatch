@@ -231,9 +231,16 @@ async def test_unexpected_executor_error_is_contained_as_failed(tmp_path: Path) 
 
 
 async def test_admission_controls_are_deferred_every_fire_runs(tmp_path: Path) -> None:
-    counter = tmp_path / "count.txt"
-    append = "import sys; open(sys.argv[1], 'a').write('x')"
-    wf = Workflow(name="wf", steps=[Step(name="w", command=_py(append, str(counter)))])
+    markers = tmp_path / "markers"
+    markers.mkdir()
+    # Each run's subprocess drops its OWN uniquely-named marker (a fresh UUID minted inside the
+    # child), so "both admitted fires executed" is proven by counting two distinct markers —
+    # never by how two concurrent writes to one shared file interleave (a Windows append race).
+    code = (
+        "import os, sys, uuid; "
+        "open(os.path.join(sys.argv[1], uuid.uuid4().hex + '.txt'), 'w').write('ran')"
+    )
+    wf = Workflow(name="wf", steps=[Step(name="w", command=_py(code, str(markers)))])
     scheduler = Scheduler(default_cooldown_ms=5000)
     # The cooldown window is stored per §4, but no control is active yet in v0.1.0.
     assert scheduler.default_cooldown_ms == 5000
@@ -245,8 +252,9 @@ async def test_admission_controls_are_deferred_every_fire_runs(tmp_path: Path) -
     await scheduler.drain()
     assert r1 is not None
     assert r2 is not None
-    assert await _read(counter) == "xx"
+    assert len(list(markers.iterdir())) == 2  # both distinct runs executed, order-independent
     assert len(scheduler.records) == 2
+    assert all(run.state is RunState.SUCCEEDED for run in scheduler.records)
 
 
 def test_max_parallel_must_be_positive() -> None:

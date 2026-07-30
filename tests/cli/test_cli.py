@@ -7,6 +7,7 @@ The usage/config/abort exit-code remapping in ``main`` is exercised directly.
 """
 
 import asyncio
+import json
 import os
 import signal
 import subprocess
@@ -22,9 +23,10 @@ from typer.testing import CliRunner
 
 import watchflow.cli.commands.run as run_cmd
 import watchflow.cli.main as main_mod
-from watchflow.cli.commands.run import _aggregate_exit, _exit_code, _ShutdownSignals
+from watchflow.cli.commands.run import _aggregate_exit, _exit_code, _resolve_mode, _ShutdownSignals
 from watchflow.cli.exit_codes import ExitCode
 from watchflow.cli.main import app
+from watchflow.cli.reporter import OutputMode
 from watchflow.core.config import WatchflowConfig
 from watchflow.core.events import Event
 from watchflow.core.scheduler import Run
@@ -219,6 +221,163 @@ def test_run_startup_failure_is_exit_4(tmp_path: Path, monkeypatch: pytest.Monke
 
 
 # --------------------------------------------------------------------------- #
+# Output modes: flag resolution and the --json / --quiet renderings end to end. #
+# --------------------------------------------------------------------------- #
+
+
+def test_resolve_mode_precedence_and_conflict() -> None:
+    assert _resolve_mode(verbose=False, quiet=False, as_json=False) is OutputMode.DEFAULT
+    assert _resolve_mode(verbose=True, quiet=False, as_json=False) is OutputMode.VERBOSE
+    assert _resolve_mode(verbose=False, quiet=True, as_json=False) is OutputMode.QUIET
+    assert _resolve_mode(verbose=True, quiet=True, as_json=True) is OutputMode.JSON  # --json wins
+    with pytest.raises(typer.BadParameter):
+        _resolve_mode(verbose=True, quiet=True, as_json=False)
+
+
+def test_run_once_json_streams_lifecycle_and_output_events(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    argv = [sys.executable, "-c", 'print("hello-from-step")']
+    config = _write_config(tmp_path, argv)
+    monkeypatch.setattr(run_cmd, "FilesystemAdapter", _OneShotSource)
+    result = runner.invoke(app, ["run", str(tmp_path), "--config", str(config), "--once", "--json"])
+    assert result.exit_code == int(ExitCode.SUCCESS)
+    objs = [json.loads(line) for line in result.output.splitlines() if line.strip().startswith("{")]
+    events = [o["event"] for o in objs]
+    assert "run.started" in events
+    assert "step.output" in events  # the program's own output, streamed as JSON
+    assert "run.completed" in events
+    assert "run.summary" in events
+    assert any("hello-from-step" in o.get("text", "") for o in objs)
+
+
+def test_run_once_quiet_prints_tally_not_lifecycle_lines(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    argv = [sys.executable, "-c", 'print("noise")']
+    config = _write_config(tmp_path, argv)
+    monkeypatch.setattr(run_cmd, "FilesystemAdapter", _OneShotSource)
+    result = runner.invoke(
+        app, ["run", str(tmp_path), "--config", str(config), "--once", "--quiet"]
+    )
+    assert result.exit_code == int(ExitCode.SUCCESS)
+    assert "1 succeeded" in result.output  # the verdict tally
+    assert "→ started" not in result.output  # no per-event engine lines
+    assert "engine starting" not in result.output  # banner suppressed
+
+
+def test_main_verbose_quiet_conflict_is_exit_3(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    config = _write_config(tmp_path, ["true"])
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["watchflow", "run", str(tmp_path), "--config", str(config), "--verbose", "--quiet"],
+    )
+    with pytest.raises(SystemExit) as exc:
+        main_mod.main()
+    assert exc.value.code == int(ExitCode.USAGE_ERROR)
+
+
+# --------------------------------------------------------------------------- #
+# Step cwd defaulting: a config runs in the watched project, not the caller's dir.
+# --------------------------------------------------------------------------- #
+
+# A step that records its own working directory into the file given as argv[1]. Double quotes
+# only (no single quotes) so it embeds safely in the single-quoted TOML literal `_write_config`
+# builds.
+_RECORD_CWD = 'import os, sys; open(sys.argv[1], "w").write(os.getcwd())'
+
+
+def test_run_defaults_unset_step_cwd_to_the_watched_root(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    proj = tmp_path / "proj"
+    proj.mkdir()
+    recorded = tmp_path / "cwd.txt"
+    argv = [sys.executable, "-c", _RECORD_CWD, str(recorded)]
+    config = _write_config(proj, argv)  # no cwd in config → defaults to the watched root
+    monkeypatch.setattr(run_cmd, "FilesystemAdapter", _OneShotSource)
+    result = runner.invoke(app, ["run", str(proj), "--config", str(config), "--once"])
+    assert result.exit_code == int(ExitCode.SUCCESS)
+    # The step ran in the watched project, not wherever the CLI was invoked.
+    assert Path(recorded.read_text(encoding="utf-8")).resolve() == proj.resolve()
+
+
+def test_run_explicit_cwd_wins_over_the_default(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    proj = tmp_path / "proj"
+    proj.mkdir()
+    other = tmp_path / "elsewhere"
+    other.mkdir()
+    recorded = tmp_path / "cwd.txt"
+    argv = [sys.executable, "-c", _RECORD_CWD, str(recorded)]
+    config = proj / "watchflow.toml"
+    config.write_text(
+        "[[trigger]]\n"
+        'name = "t"\n'
+        'patterns = ["**/*.py"]\n'
+        "  [trigger.workflow]\n"
+        f"  steps = [{{ command = {_toml_array(argv)}, cwd = '{other}' }}]\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(run_cmd, "FilesystemAdapter", _OneShotSource)
+    result = runner.invoke(app, ["run", str(proj), "--config", str(config), "--once"])
+    assert result.exit_code == int(ExitCode.SUCCESS)
+    # The explicit cwd is honored over the watched-root default.
+    assert Path(recorded.read_text(encoding="utf-8")).resolve() == other.resolve()
+
+
+def test_run_resolves_a_relative_watched_root_to_an_absolute_cwd(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    proj = tmp_path / "proj"
+    proj.mkdir()
+    recorded = tmp_path / "cwd.txt"
+    argv = [sys.executable, "-c", _RECORD_CWD, str(recorded)]
+    config = _write_config(proj, argv)
+    monkeypatch.setattr(run_cmd, "FilesystemAdapter", _OneShotSource)
+    monkeypatch.chdir(tmp_path)  # invoke from the parent, watch by relative name
+    result = runner.invoke(app, ["run", "proj", "--config", str(config), "--once"])
+    assert result.exit_code == int(ExitCode.SUCCESS)
+    # A relative watched root still lands the subprocess in the correct absolute directory.
+    assert Path(recorded.read_text(encoding="utf-8")).resolve() == proj.resolve()
+
+
+def test_run_relative_cwd_resolves_under_the_watched_root(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The mechanism the scaffold's `cwd = "."` relies on: a relative cwd resolves against the
+    # watched root, not the invocation dir.
+    proj = tmp_path / "proj"
+    proj.mkdir()
+    (proj / "sub").mkdir()
+    recorded = tmp_path / "cwd.txt"
+    argv = [sys.executable, "-c", _RECORD_CWD, str(recorded)]
+    config = proj / "watchflow.toml"
+    config.write_text(
+        "[[trigger]]\n"
+        'name = "t"\n'
+        'patterns = ["**/*.py"]\n'
+        "  [trigger.workflow]\n"
+        f"  steps = [{{ command = {_toml_array(argv)}, cwd = 'sub' }}]\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(run_cmd, "FilesystemAdapter", _OneShotSource)
+    result = runner.invoke(app, ["run", str(proj), "--config", str(config), "--once"])
+    assert result.exit_code == int(ExitCode.SUCCESS)
+    assert Path(recorded.read_text(encoding="utf-8")).resolve() == (proj / "sub").resolve()
+
+
+def test_init_scaffold_documents_the_cwd_default(tmp_path: Path) -> None:
+    runner.invoke(app, ["init", str(tmp_path)])
+    written = (tmp_path / "watchflow.toml").read_text(encoding="utf-8")
+    assert 'cwd = "."' in written  # self-documenting: the step runs in the watched root
+
+
+# --------------------------------------------------------------------------- #
 # Exit-code aggregation.                                                       #
 # --------------------------------------------------------------------------- #
 
@@ -364,24 +523,7 @@ def test_real_sigint_drains_gracefully_and_exits_130(tmp_path: Path) -> None:
     assert "Traceback (most recent call last)" not in stderr_text
 
 
-# --------------------------------------------------------------------------- #
-# Banner / summary rendering.                                                  #
-# --------------------------------------------------------------------------- #
-
-
-def test_banner_renders_both_modes(capsys: pytest.CaptureFixture[str]) -> None:
-    cfg = _config()
-    run_cmd._print_banner(cfg, Path("proj"), Path("proj/watchflow.toml"), once=False)
-    assert "watching" in capsys.readouterr().out
-    run_cmd._print_banner(cfg, Path("proj"), Path("proj/watchflow.toml"), once=True)
-    assert "running once" in capsys.readouterr().out
-
-
-def test_summary_renders_empty_and_nonempty(capsys: pytest.CaptureFixture[str]) -> None:
-    run_cmd._print_summary([])
-    assert "no runs" in capsys.readouterr().out
-    run_cmd._print_summary([_run(RunState.SUCCEEDED)])
-    assert "1 succeeded" in capsys.readouterr().out
+# Banner / summary rendering moved to the RunReporter; see tests/cli/test_reporter.py.
 
 
 # --------------------------------------------------------------------------- #

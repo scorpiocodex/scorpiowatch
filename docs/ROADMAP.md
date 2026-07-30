@@ -26,7 +26,8 @@ The ~10 h/week capacity is a **maintainer-owned assumption, not a measurement** 
 - Project scaffolding per [`PROJECT_STRUCTURE.md`](./PROJECT_STRUCTURE.md); MIT license, base CI
 - `FilesystemAdapter` (Linux only), `ManualAdapter`
 - `TriggerEngine` with glob patterns, no scoring yet
-- `Executor` with single subprocess, `shell=False`, no timeout
+- `Executor`: a linear (single-branch) Workflow of `subprocess` Steps, `shell=False`, per-step opt-in `timeout_s` (default none), process-group teardown, and streamed-and-bounded output capture ([`EXECUTION_MODEL.md`](./EXECUTION_MODEL.md) §2/§6)
+- `Scheduler` **seam**: admits every fired Trigger's Workflow to the `Executor` and owns the `Run` lifecycle — the full `Scheduler` (dedupe, cooldown, rate limiting) remains v0.3.0
 - `watchflow run` and `watchflow init`
 
 **v0.1.1** — bugfix: adapter not closing cleanly on SIGINT
@@ -38,6 +39,7 @@ The ~10 h/week capacity is a **maintainer-owned assumption, not a measurement** 
 - macOS `FilesystemAdapter` support
 - `CronAdapter` (core-bundled)
 - Basic confidence scoring in `TriggerEngine`
+- `TriggerEngine` hardening: per-trigger error isolation in the `evaluate` loop — one trigger's evaluation failure is contained and logged, never sinking the batch ([`ENGINEERING_PRINCIPLES.md`](./ENGINEERING_PRINCIPLES.md) §7) — needed once non-glob (predicate) matching lands
 
 **v0.2.1** — bugfix: queue overflow not raising `BackpressureError`
 **v0.2.2** — bugfix: macOS `FSEvents` missing initial scan

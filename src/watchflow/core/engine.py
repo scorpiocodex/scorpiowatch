@@ -38,6 +38,7 @@ import structlog
 from watchflow.core.config import WatchflowConfig
 from watchflow.core.events import BackpressureStrategy, EventBus
 from watchflow.core.ports import SourceAdapter
+from watchflow.core.reporting import RunReporter
 from watchflow.core.scheduler import Run, Scheduler
 from watchflow.core.triggers import TriggerEngine, TriggerFired
 
@@ -76,6 +77,7 @@ class Engine:
         sources: Sequence[SourceAdapter] = (),
         max_parallel: int = 4,
         bus_maxsize: int = 256,
+        reporter: RunReporter | None = None,
     ) -> None:
         """Create an Engine for ``config`` fed by ``sources``.
 
@@ -85,6 +87,8 @@ class Engine:
                 core↔adapters layering). Empty yields an inert engine that matches nothing.
             max_parallel: Upper bound on concurrently-executing runs (Scheduler bound).
             bus_maxsize: Per-subscriber bound on the ``EventBus`` queues.
+            reporter: Optional :class:`~watchflow.core.reporting.RunReporter` the Scheduler
+                narrates run lifecycle and subprocess output to (the CLI's output layer).
         """
         self._config = config
         self._sources: tuple[SourceAdapter, ...] = tuple(sources)
@@ -92,7 +96,7 @@ class Engine:
         self._matcher = TriggerEngine()
         for trigger in config.triggers:
             self._matcher.register(trigger)
-        self._scheduler = Scheduler(max_parallel=max_parallel)
+        self._scheduler = Scheduler(max_parallel=max_parallel, reporter=reporter)
         self._drain = asyncio.Event()
         self._force = asyncio.Event()
         self._once = False
