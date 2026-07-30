@@ -31,9 +31,7 @@ def make_event(path: str | None = "src/api.py", *, source: str = "filesystem") -
     )
 
 
-def make_trigger(
-    pattern: str, *, name: str = "run-tests", source: str = "filesystem"
-) -> Trigger:
+def make_trigger(pattern: str, *, name: str = "run-tests", source: str = "filesystem") -> Trigger:
     """Build a glob Trigger with a trivial Workflow."""
     return Trigger(
         name=name,

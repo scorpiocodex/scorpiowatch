@@ -187,9 +187,7 @@ def test_prop_drop_oldest_retains_the_newest_events(maxsize: int, count: int) ->
     subscribers=st.integers(min_value=1, max_value=5),
     count=st.integers(min_value=0, max_value=40),
 )
-def test_prop_fanout_delivers_every_event_to_every_subscriber(
-    subscribers: int, count: int
-) -> None:
+def test_prop_fanout_delivers_every_event_to_every_subscriber(subscribers: int, count: int) -> None:
     # With capacity for every event, each independent subscriber queue receives every
     # published event and nothing is dropped.
     async def scenario() -> None:
