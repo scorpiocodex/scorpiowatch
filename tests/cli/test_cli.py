@@ -7,7 +7,11 @@ The usage/config/abort exit-code remapping in ``main`` is exercised directly.
 """
 
 import asyncio
+import os
+import signal
+import subprocess
 import sys
+import time
 from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
@@ -262,6 +266,102 @@ async def test_shutdown_signals_drive_two_stage_shutdown() -> None:
     await asyncio.sleep(0.05)  # let the scheduled shutdown coroutines run
     assert signals.count == 2
     assert engine.calls == [False, True]
+
+
+# --------------------------------------------------------------------------- #
+# Real OS SIGINT reaching a live `watchflow run` process (§7.1).               #
+#                                                                              #
+# The tests above prove the two-stage *decision* (`on_signal` → drain/force) and #
+# the engine's drain/force *behavior* in-process. This one closes the last seam: #
+# an actual SIGINT, delivered by the OS to a real `watchflow run` subprocess with #
+# a run in flight, must drive the graceful drain and exit 130 — the seam the     #
+# daemon's SIGTERM handling (v1.1.0) will build on. Signal delivery is POSIX-     #
+# specific (Windows consoles use CTRL_C_EVENT semantics), so it skips there.     #
+# --------------------------------------------------------------------------- #
+
+
+# Single-line so it embeds as a TOML literal; double-quotes only so the single-quoted
+# literal in `_write_config` stays intact. Writes a start marker (proving the run is in
+# flight) before a short sleep, then a done marker (proving it *drained to completion*,
+# i.e. graceful — a forced cancel would kill it mid-sleep and the done marker never lands).
+_DRAIN_STEP_CODE = (
+    "import sys, time; "
+    'open(sys.argv[1], "w").write("in-flight"); '
+    "time.sleep(0.6); "
+    'open(sys.argv[2], "w").write("drained")'
+)
+
+
+@pytest.mark.filesystem
+@pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="real SIGINT delivery is POSIX-specific; Windows console CTRL_C_EVENT semantics "
+    "are the daemon's concern (v1.1.0), not this seam",
+)
+def test_real_sigint_drains_gracefully_and_exits_130(tmp_path: Path) -> None:
+    watchdir = tmp_path / "watch"
+    watchdir.mkdir()
+    start_marker = tmp_path / "step-started.txt"
+    done_marker = tmp_path / "step-drained.txt"
+    argv = [sys.executable, "-c", _DRAIN_STEP_CODE, str(start_marker), str(done_marker)]
+    config = _write_config(tmp_path, argv)  # config lives outside watchdir, so it stirs no events
+
+    out_log = tmp_path / "run.out"
+    err_log = tmp_path / "run.err"
+    env = {**os.environ, "PYTHONUNBUFFERED": "1"}
+    command = [
+        sys.executable,
+        "-m",
+        "watchflow.cli.main",
+        "run",
+        str(watchdir),
+        "--config",
+        str(config),
+    ]
+    with out_log.open("wb") as out, err_log.open("wb") as err:
+        proc = subprocess.Popen(command, stdout=out, stderr=err, env=env)
+        try:
+            # Drive the watch until a run is demonstrably in flight: touch a fresh matching file
+            # each tick until the step writes its start marker. Gating on the marker (not on a
+            # log line or a fixed sleep) closes two races at once — the watch may not be armed
+            # for the first touch, and the signal handlers are installed strictly before a run
+            # can start, so a written start marker proves the engine is fully armed for SIGINT.
+            deadline = time.monotonic() + 25
+            tick = 0
+            while not start_marker.exists():
+                if proc.poll() is not None:
+                    raise AssertionError(
+                        f"watchflow exited early (code {proc.returncode}) before any run started"
+                        f"\n--- stderr ---\n{err_log.read_text(errors='replace')}"
+                    )
+                if time.monotonic() > deadline:
+                    raise AssertionError(
+                        "no run went in flight before the deadline"
+                        f"\n--- stderr ---\n{err_log.read_text(errors='replace')}"
+                    )
+                (watchdir / f"change-{tick}.py").write_text("x = 1\n", encoding="utf-8")
+                tick += 1
+                time.sleep(0.5)
+
+            # A run is in flight (mid-sleep); deliver a real interrupt and let the engine drain.
+            proc.send_signal(signal.SIGINT)
+            returncode = proc.wait(timeout=15)
+        finally:
+            if proc.poll() is None:  # never leave a watcher behind if an assertion fired
+                proc.kill()
+                proc.wait(timeout=5)
+
+    stderr_text = err_log.read_text(errors="replace")
+    assert returncode == int(ExitCode.SIGINT), (
+        f"expected 130, got {returncode}\n--- stderr ---\n{stderr_text}"
+    )
+    # Graceful, not forced: the in-flight run ran to its terminal state during the drain.
+    assert done_marker.exists(), (
+        f"the in-flight run did not drain to completion\n--- stderr ---\n{stderr_text}"
+    )
+    # A clean drain, not a crash: no interpreter traceback escaped (e.g. an uncaught
+    # KeyboardInterrupt from a SIGINT that beat the handler install).
+    assert "Traceback (most recent call last)" not in stderr_text
 
 
 # --------------------------------------------------------------------------- #
