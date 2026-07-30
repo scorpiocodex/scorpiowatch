@@ -28,8 +28,10 @@ patterns = ["**/*.py"]
 
   [trigger.workflow]
   # Each step runs as a subprocess (shell=False); `command` is an argv list, never a string.
+  # `cwd` is where the step runs: "." is the watched project root (change it to a subdir to
+  # scope a step there). Omit `cwd` entirely and the step still runs in the watched root.
   steps = [
-    { command = ["python", "-m", "pytest", "-q"], timeout_s = 60 },
+    { command = ["python", "-m", "pytest", "-q"], timeout_s = 60, cwd = "." },
   ]
 """
 

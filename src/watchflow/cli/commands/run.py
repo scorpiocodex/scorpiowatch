@@ -80,6 +80,7 @@ def run(
         _render_config_error(error, config_path)
         raise typer.Exit(int(ExitCode.CONFIG_ERROR)) from error
 
+    _default_step_cwds(cfg, path.resolve())
     reporter.banner(cfg, path, config_path, once=once)
 
     try:
@@ -89,6 +90,36 @@ def run(
         raise typer.Exit(int(ExitCode.STARTUP_ERROR)) from error
 
     raise typer.Exit(code)
+
+
+def _default_step_cwds(cfg: WatchflowConfig, root: Path) -> None:
+    """Resolve every step's working directory against the watched project ``root``.
+
+    A step's ``cwd`` is where its subprocess runs. Left unset, ``create_subprocess_exec``
+    inherits the *invocation* directory — so a freshly-init'd config would run pytest wherever
+    ``watchflow`` was launched, not in the project it watches (the real-project finding). This
+    points an unset cwd at the watched root, and resolves a relative cwd against it, always to
+    an absolute path — so even a relative ``run`` PATH lands the subprocess in the right place
+    regardless of where the command was invoked. An explicit cwd always wins over the default;
+    only its resolution to absolute (against the root) is applied — matching the project-root
+    reference of ``EXECUTION_MODEL.md`` §6.
+
+    Mutates ``cfg`` in place: it is a fresh per-invocation config, and where the loader shares
+    one Workflow across several expanded Triggers the resolved cwd is identical for each, so
+    re-resolving an already-absolute cwd is a harmless no-op.
+    """
+    for trigger in cfg.triggers:
+        for step in trigger.workflow.steps:
+            step.cwd = _resolve_cwd(step.cwd, root)
+
+
+def _resolve_cwd(cwd: Path | None, root: Path) -> Path:
+    """The absolute directory a step runs in: the watched ``root`` unless the step set its own."""
+    if cwd is None:
+        return root
+    if cwd.is_absolute():
+        return cwd
+    return (root / cwd).resolve()
 
 
 def _resolve_mode(*, verbose: bool, quiet: bool, as_json: bool) -> OutputMode:

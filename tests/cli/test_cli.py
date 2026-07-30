@@ -281,6 +281,103 @@ def test_main_verbose_quiet_conflict_is_exit_3(
 
 
 # --------------------------------------------------------------------------- #
+# Step cwd defaulting: a config runs in the watched project, not the caller's dir.
+# --------------------------------------------------------------------------- #
+
+# A step that records its own working directory into the file given as argv[1]. Double quotes
+# only (no single quotes) so it embeds safely in the single-quoted TOML literal `_write_config`
+# builds.
+_RECORD_CWD = 'import os, sys; open(sys.argv[1], "w").write(os.getcwd())'
+
+
+def test_run_defaults_unset_step_cwd_to_the_watched_root(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    proj = tmp_path / "proj"
+    proj.mkdir()
+    recorded = tmp_path / "cwd.txt"
+    argv = [sys.executable, "-c", _RECORD_CWD, str(recorded)]
+    config = _write_config(proj, argv)  # no cwd in config → defaults to the watched root
+    monkeypatch.setattr(run_cmd, "FilesystemAdapter", _OneShotSource)
+    result = runner.invoke(app, ["run", str(proj), "--config", str(config), "--once"])
+    assert result.exit_code == int(ExitCode.SUCCESS)
+    # The step ran in the watched project, not wherever the CLI was invoked.
+    assert Path(recorded.read_text(encoding="utf-8")).resolve() == proj.resolve()
+
+
+def test_run_explicit_cwd_wins_over_the_default(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    proj = tmp_path / "proj"
+    proj.mkdir()
+    other = tmp_path / "elsewhere"
+    other.mkdir()
+    recorded = tmp_path / "cwd.txt"
+    argv = [sys.executable, "-c", _RECORD_CWD, str(recorded)]
+    config = proj / "watchflow.toml"
+    config.write_text(
+        "[[trigger]]\n"
+        'name = "t"\n'
+        'patterns = ["**/*.py"]\n'
+        "  [trigger.workflow]\n"
+        f"  steps = [{{ command = {_toml_array(argv)}, cwd = '{other}' }}]\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(run_cmd, "FilesystemAdapter", _OneShotSource)
+    result = runner.invoke(app, ["run", str(proj), "--config", str(config), "--once"])
+    assert result.exit_code == int(ExitCode.SUCCESS)
+    # The explicit cwd is honored over the watched-root default.
+    assert Path(recorded.read_text(encoding="utf-8")).resolve() == other.resolve()
+
+
+def test_run_resolves_a_relative_watched_root_to_an_absolute_cwd(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    proj = tmp_path / "proj"
+    proj.mkdir()
+    recorded = tmp_path / "cwd.txt"
+    argv = [sys.executable, "-c", _RECORD_CWD, str(recorded)]
+    config = _write_config(proj, argv)
+    monkeypatch.setattr(run_cmd, "FilesystemAdapter", _OneShotSource)
+    monkeypatch.chdir(tmp_path)  # invoke from the parent, watch by relative name
+    result = runner.invoke(app, ["run", "proj", "--config", str(config), "--once"])
+    assert result.exit_code == int(ExitCode.SUCCESS)
+    # A relative watched root still lands the subprocess in the correct absolute directory.
+    assert Path(recorded.read_text(encoding="utf-8")).resolve() == proj.resolve()
+
+
+def test_run_relative_cwd_resolves_under_the_watched_root(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The mechanism the scaffold's `cwd = "."` relies on: a relative cwd resolves against the
+    # watched root, not the invocation dir.
+    proj = tmp_path / "proj"
+    proj.mkdir()
+    (proj / "sub").mkdir()
+    recorded = tmp_path / "cwd.txt"
+    argv = [sys.executable, "-c", _RECORD_CWD, str(recorded)]
+    config = proj / "watchflow.toml"
+    config.write_text(
+        "[[trigger]]\n"
+        'name = "t"\n'
+        'patterns = ["**/*.py"]\n'
+        "  [trigger.workflow]\n"
+        f"  steps = [{{ command = {_toml_array(argv)}, cwd = 'sub' }}]\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(run_cmd, "FilesystemAdapter", _OneShotSource)
+    result = runner.invoke(app, ["run", str(proj), "--config", str(config), "--once"])
+    assert result.exit_code == int(ExitCode.SUCCESS)
+    assert Path(recorded.read_text(encoding="utf-8")).resolve() == (proj / "sub").resolve()
+
+
+def test_init_scaffold_documents_the_cwd_default(tmp_path: Path) -> None:
+    runner.invoke(app, ["init", str(tmp_path)])
+    written = (tmp_path / "watchflow.toml").read_text(encoding="utf-8")
+    assert 'cwd = "."' in written  # self-documenting: the step runs in the watched root
+
+
+# --------------------------------------------------------------------------- #
 # Exit-code aggregation.                                                       #
 # --------------------------------------------------------------------------- #
 
