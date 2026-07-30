@@ -16,14 +16,29 @@ exceeds its ``timeout_s``, or an Executor whose task is cancelled, terminates th
 subprocess **and its whole process group** — a new session via ``start_new_session`` on
 POSIX (killed with ``os.killpg``) and a kill-on-close Job Object on Windows (§6 names both)
 — so a child that spawned grandchildren leaves no orphan.
+
+Output is **streamed, not buffered**: both pipes are drained concurrently by their own
+reader tasks (under an ``asyncio.TaskGroup``, §4) and each decoded chunk is handed to an
+optional ``on_output`` sink *as the child produces it*, so a long run's progress is visible
+live rather than arriving in a lump at exit. The neither ``EXECUTION_MODEL.md`` nor
+``MODULE_SPECIFICATIONS.md`` pins an output-capture policy, so this module owns two bounds:
+the sink is awaited (a slow consumer back-pressures the reader, which stops pulling from the
+pipe, so the OS pipe buffer throttles the child — the ``EventBus`` BLOCK discipline), and the
+output retained on the ``StepResult`` is capped per stream (``_MAX_RETAINED_CHARS``), keeping
+the tail so a failing run's summary/traceback survives while a multi-megabyte producer cannot
+balloon memory.
 """
 
 import asyncio
+import codecs
 import os
 import signal
 import sys
 import time
+from collections import deque
+from collections.abc import Awaitable, Callable
 from contextlib import suppress
+from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
 from uuid import UUID, uuid4
@@ -38,6 +53,47 @@ _log = structlog.get_logger(__name__)
 # POSIX creates the process group via start_new_session; Windows uses a Job Object instead
 # (start_new_session is accepted and ignored there).
 _POSIX = sys.platform != "win32"
+
+# Per-read ceiling: ``StreamReader.read(n)`` returns as soon as *any* data is available (up
+# to n), so this bounds a single read's memory without batching — output still streams the
+# instant the child writes it.
+_READ_CHUNK_BYTES = 64 * 1024
+
+# Upper bound on the decoded output retained per stream on a ``StepResult`` (the record/stream
+# split: the live sink sees everything; the record keeps only the last this-many characters).
+# 256 KiB/stream holds thousands of lines — far more than a chatty CI run emits — while a
+# runaway producer is capped instead of retained whole.
+_MAX_RETAINED_CHARS = 256 * 1024
+
+
+class StreamName(StrEnum):
+    """Which of a subprocess's two standard streams an :class:`OutputChunk` came from."""
+
+    STDOUT = "stdout"
+    STDERR = "stderr"
+
+
+@dataclass(frozen=True, slots=True)
+class OutputChunk:
+    """One decoded slice of a running subprocess's output, tagged with its stream.
+
+    Emitted to an ``on_output`` sink the instant it is read — the streaming counterpart to
+    the whole-output ``StepResult.stdout`` / ``.stderr`` retained for the record.
+
+    Attributes:
+        stream: Whether this chunk came from ``stdout`` or ``stderr``.
+        text: The decoded text (UTF-8, undecodable bytes replaced). Not newline-aligned —
+            a chunk may hold a partial line or several lines; line assembly is the
+            consumer's concern.
+    """
+
+    stream: StreamName
+    text: str
+
+
+# An awaited per-chunk sink. Awaiting is deliberate: a slow consumer back-pressures the
+# reader (the ``EXECUTION_MODEL.md`` §4 / EventBus discipline) rather than growing a buffer.
+OutputSink = Callable[[OutputChunk], Awaitable[None]]
 
 
 class RunState(StrEnum):
@@ -282,9 +338,94 @@ async def _spawn_group(
     return proc, token
 
 
-def _decode(data: bytes) -> str:
-    """Decode captured subprocess output as UTF-8, replacing undecodable bytes."""
-    return data.decode("utf-8", errors="replace")
+class _BoundedText:
+    """A tail-biased, size-capped accumulator for one stream's retained output.
+
+    Holds decoded chunks up to ``cap`` characters; once exceeded it drops the *oldest*
+    chunks so the most recent output survives (a failing run's summary/traceback sits at the
+    end), and :meth:`render` prefixes a one-line truncation notice so the drop is never
+    silent. The live ``on_output`` sink is unaffected — this bounds only the record.
+    """
+
+    def __init__(self, cap: int = _MAX_RETAINED_CHARS) -> None:
+        """Create an accumulator retaining at most ``cap`` characters."""
+        self._cap = cap
+        self._chunks: deque[str] = deque()
+        self._size = 0
+        self._dropped = False
+
+    def add(self, text: str) -> None:
+        """Append ``text``, evicting the oldest chunks if the cap is exceeded."""
+        if not text:
+            return
+        self._chunks.append(text)
+        self._size += len(text)
+        while self._size > self._cap and len(self._chunks) > 1:
+            self._size -= len(self._chunks.popleft())
+            self._dropped = True
+
+    def render(self) -> str:
+        """Return the retained text, trimmed to the cap with a notice if anything was dropped."""
+        text = "".join(self._chunks)
+        if len(text) > self._cap:  # a single chunk larger than the whole cap
+            text = text[-self._cap :]
+            self._dropped = True
+        if self._dropped:
+            kib = self._cap // 1024
+            return f"[watchflow: earlier output truncated, retaining last {kib} KiB]\n{text}"
+        return text
+
+
+async def _pump(
+    reader: asyncio.StreamReader,
+    stream: StreamName,
+    on_output: OutputSink | None,
+    buffer: _BoundedText,
+) -> None:
+    """Drain one pipe to EOF, decoding incrementally and streaming each chunk to the sink.
+
+    Reads bounded chunks (never a whole line, so a newline-free producer cannot blow up the
+    buffer) and decodes through a stateful incremental decoder, so a multi-byte character
+    split across a read boundary is never mojibake. Each decoded chunk is retained (bounded)
+    and, if a sink is present, awaited out to it — the await is the back-pressure point.
+    """
+    decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
+    while True:
+        data = await reader.read(_READ_CHUNK_BYTES)
+        if not data:
+            break
+        text = decoder.decode(data)
+        if not text:
+            continue  # bytes buffered mid-character; wait for the rest
+        buffer.add(text)
+        if on_output is not None:
+            await on_output(OutputChunk(stream=stream, text=text))
+    tail = decoder.decode(b"", final=True)  # flush any bytes left mid-character at EOF
+    if tail:
+        buffer.add(tail)
+        if on_output is not None:
+            await on_output(OutputChunk(stream=stream, text=tail))
+
+
+async def _drain_streams(
+    proc: asyncio.subprocess.Process,
+    on_output: OutputSink | None,
+    out_buf: _BoundedText,
+    err_buf: _BoundedText,
+) -> None:
+    """Concurrently drain both pipes to EOF, then reap the process.
+
+    The two readers run under a ``TaskGroup`` (``EXECUTION_MODEL.md`` §4) so neither stream
+    blocks the other — a silent stderr never stalls a chatty stdout — and both are awaited
+    (or cancelled and awaited) before this returns, leaving no dangling reader task.
+    """
+    stdout, stderr = proc.stdout, proc.stderr
+    if stdout is None or stderr is None:  # pragma: no cover — both are always PIPEs
+        return
+    async with asyncio.TaskGroup() as group:
+        group.create_task(_pump(stdout, StreamName.STDOUT, on_output, out_buf))
+        group.create_task(_pump(stderr, StreamName.STDERR, on_output, err_buf))
+    await proc.wait()
 
 
 class Executor:
@@ -296,7 +437,13 @@ class Executor:
     any form (Constitution Article III); no scheduling, DAG, or CLI concerns live here.
     """
 
-    async def run(self, workflow: Workflow, ctx: RunContext | None = None) -> RunResult:
+    async def run(
+        self,
+        workflow: Workflow,
+        ctx: RunContext | None = None,
+        *,
+        on_output: OutputSink | None = None,
+    ) -> RunResult:
         """Execute ``workflow``'s Steps in order and return the aggregate result.
 
         Linear semantics (``EXECUTION_MODEL.md`` §3, single branch): steps run one after
@@ -307,6 +454,9 @@ class Executor:
         Args:
             workflow: The Workflow to run.
             ctx: The Run context; a fresh one (new ``run_id``) is created if omitted.
+            on_output: Optional sink receiving each subprocess ``OutputChunk`` as it is read,
+                across every step. ``None`` (the default) still drains the pipes — it only
+                skips the live hand-off — so retention and teardown are unchanged.
 
         Returns:
             A ``RunResult`` carrying every ``StepResult`` and the aggregate state.
@@ -329,7 +479,7 @@ class Executor:
                     )
                 )
                 continue
-            result = await self.run_step(step, context)
+            result = await self.run_step(step, context, on_output=on_output)
             results.append(result)
             if result.state is not RunState.SUCCEEDED:
                 aggregate = result.state
@@ -342,19 +492,24 @@ class Executor:
             duration_s=time.monotonic() - started,
         )
 
-    async def run_step(self, step: Step, ctx: RunContext) -> StepResult:
+    async def run_step(
+        self, step: Step, ctx: RunContext, *, on_output: OutputSink | None = None
+    ) -> StepResult:
         """Execute one Step as a subprocess and return its result.
 
         The child runs under a scrubbed environment (``step.env_allowlist`` only) in its
-        own process group. If ``step.timeout_s`` is set and elapses, the subprocess and its
-        whole process group are terminated and the step is recorded ``TIMED_OUT``. If this
-        coroutine's task is cancelled, the subprocess and its group are likewise terminated
-        before the ``CancelledError`` propagates — a cancelled Executor leaves no orphaned
-        process (``EXECUTION_MODEL.md`` §4/§6).
+        own process group. Both output pipes are drained concurrently and streamed to
+        ``on_output`` as the child writes (see :func:`_drain_streams`); the ``StepResult``
+        still carries the captured output, capped per stream. If ``step.timeout_s`` is set
+        and elapses, the subprocess and its whole process group are terminated and the step
+        is recorded ``TIMED_OUT``. If this coroutine's task is cancelled, the subprocess and
+        its group are likewise terminated before the ``CancelledError`` propagates — a
+        cancelled Executor leaves no orphaned process (``EXECUTION_MODEL.md`` §4/§6).
 
         Args:
             step: The Step to execute.
             ctx: The ambient Run context (supplies the ``run_id`` for log records).
+            on_output: Optional sink receiving each ``OutputChunk`` as it is produced.
 
         Returns:
             A ``StepResult`` with the step's state, exit code, captured output, and timing.
@@ -384,26 +539,27 @@ class Executor:
                 stderr=str(error),
                 duration_s=time.monotonic() - started,
             )
-        communicate = asyncio.create_task(proc.communicate())
-        stdout, stderr = b"", b""
+        out_buf, err_buf = _BoundedText(), _BoundedText()
+        # A single task draining both pipes to EOF and reaping the child. Shielded from the
+        # timeout so a timeout cancels only the wait, not the drain — after the kill the
+        # readers still reach EOF and hand back whatever the child managed to emit.
+        drain = asyncio.create_task(_drain_streams(proc, on_output, out_buf, err_buf))
         timed_out = False
         try:
             try:
                 if step.timeout_s is None:
-                    stdout, stderr = await asyncio.shield(communicate)
+                    await asyncio.shield(drain)
                 else:
-                    stdout, stderr = await asyncio.wait_for(
-                        asyncio.shield(communicate), step.timeout_s
-                    )
+                    await asyncio.wait_for(asyncio.shield(drain), step.timeout_s)
             except TimeoutError:
                 timed_out = True
                 _terminate_group(proc, token)
-                stdout, stderr = await communicate
+                await drain  # readers hit EOF once the killed child closes its pipes
         except asyncio.CancelledError:
             _terminate_group(proc, token)
-            communicate.cancel()
+            drain.cancel()
             with suppress(asyncio.CancelledError):
-                await communicate
+                await drain
             _log.warning("step.cancelled", run_id=str(ctx.run_id), step=step.name)
             raise
         finally:
@@ -418,8 +574,8 @@ class Executor:
                 step_name=step.name,
                 state=RunState.TIMED_OUT,
                 exit_code=None,
-                stdout=_decode(stdout),
-                stderr=_decode(stderr),
+                stdout=out_buf.render(),
+                stderr=err_buf.render(),
                 duration_s=duration,
             )
         exit_code = proc.returncode
@@ -436,7 +592,7 @@ class Executor:
             step_name=step.name,
             state=state,
             exit_code=exit_code,
-            stdout=_decode(stdout),
-            stderr=_decode(stderr),
+            stdout=out_buf.render(),
+            stderr=err_buf.render(),
             duration_s=duration,
         )

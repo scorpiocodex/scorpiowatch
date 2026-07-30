@@ -9,6 +9,7 @@ continuously) rather than PID liveness probes, which are not portable to Windows
 import asyncio
 import os
 import sys
+import time
 from contextlib import suppress
 from pathlib import Path
 from uuid import uuid4
@@ -16,7 +17,18 @@ from uuid import uuid4
 import pytest
 
 from watchflow.core.workflow import Step, Workflow
-from watchflow.execution.executor import Executor, RunContext, RunResult, RunState, StepResult
+from watchflow.execution.executor import (
+    _MAX_RETAINED_CHARS,
+    Executor,
+    OutputChunk,
+    RunContext,
+    RunResult,
+    RunState,
+    StepResult,
+    StreamName,
+    _BoundedText,
+    _pump,
+)
 
 # A child that rewrites ``argv[1]`` with the current time forever — a liveness heartbeat.
 _HEARTBEAT_SRC = (
@@ -294,3 +306,174 @@ async def test_aggregate_state_reflects_the_single_step(
     workflow = Workflow(name="agg", steps=[Step(name="s", command=command, timeout_s=timeout_s)])
     result: RunResult = await asyncio.wait_for(Executor().run(workflow), timeout=10)
     assert result.state is expected
+
+
+# --------------------------------------------------------------------------- #
+# Streaming: output reaches the sink AS produced, not buffered until exit.     #
+# --------------------------------------------------------------------------- #
+
+
+class _Recorder:
+    """An ``on_output`` sink that records each chunk with its arrival time."""
+
+    def __init__(self) -> None:
+        self.chunks: list[tuple[float, OutputChunk]] = []
+
+    async def __call__(self, chunk: OutputChunk) -> None:
+        self.chunks.append((time.perf_counter(), chunk))
+
+    def text(self, stream: StreamName) -> str:
+        """The concatenated text seen on ``stream``, in arrival order."""
+        return "".join(c.text for _, c in self.chunks if c.stream is stream)
+
+
+# Emits four lines, flushing and sleeping between each, so a streaming reader observes them
+# spread over ~0.6s while a buffering reader would see them all at once at exit.
+_TICKER_SRC = (
+    "import sys, time\n"
+    "for i in range(4):\n"
+    "    sys.stdout.write(f'tick{i}\\n')\n"
+    "    sys.stdout.flush()\n"
+    "    time.sleep(0.2)\n"
+)
+
+
+async def test_output_streams_incrementally_not_buffered_to_exit() -> None:
+    recorder = _Recorder()
+    step = Step(name="ticker", command=_py(_TICKER_SRC))
+    result = await asyncio.wait_for(
+        Executor().run_step(step, RunContext(), on_output=recorder), timeout=10
+    )
+    assert result.state is RunState.SUCCEEDED
+    assert len(recorder.chunks) >= 2, "output arrived in a single lump — not streaming"
+    span = recorder.chunks[-1][0] - recorder.chunks[0][0]
+    # Buffered-to-completion would make every chunk land within a scheduler tick of each other
+    # (span ~0); streaming spreads them across the child's ~0.6s of sleeps.
+    assert span >= 0.25, f"chunks did not arrive over time (span={span:.3f}s)"
+    assert "tick0" in recorder.text(StreamName.STDOUT)
+    assert "tick3" in recorder.text(StreamName.STDOUT)
+
+
+async def test_interleaved_stdout_and_stderr_are_attributed_and_match_the_record() -> None:
+    code = (
+        "import sys\n"
+        "sys.stdout.write('OUT1\\n'); sys.stdout.flush()\n"
+        "sys.stderr.write('ERR1\\n'); sys.stderr.flush()\n"
+        "sys.stdout.write('OUT2\\n'); sys.stdout.flush()\n"
+    )
+    recorder = _Recorder()
+    result = await asyncio.wait_for(
+        Executor().run_step(Step(name="io", command=_py(code)), RunContext(), on_output=recorder),
+        timeout=10,
+    )
+    assert result.state is RunState.SUCCEEDED
+    assert "OUT1" in recorder.text(StreamName.STDOUT)
+    assert "OUT2" in recorder.text(StreamName.STDOUT)
+    assert "ERR1" in recorder.text(StreamName.STDERR)
+    # The streamed chunks reassemble exactly into the retained record (small, un-truncated).
+    assert recorder.text(StreamName.STDOUT) == result.stdout
+    assert recorder.text(StreamName.STDERR) == result.stderr
+
+
+async def test_chatty_stdout_with_silent_stderr_does_not_deadlock() -> None:
+    # ~100 KiB on stdout overflows the OS pipe buffer; if the readers did not drain both
+    # pipes concurrently the child would block writing while we waited on the silent stderr.
+    code = "import sys\nfor _ in range(1000): sys.stdout.write('x' * 100 + '\\n')\n"
+    result = await asyncio.wait_for(
+        Executor().run_step(Step(name="chatty", command=_py(code)), RunContext()), timeout=10
+    )
+    assert result.state is RunState.SUCCEEDED
+    assert result.stdout.count("\n") == 1000
+    assert result.stderr == ""  # the silent stream stays empty, no deadlock
+
+
+async def test_high_volume_output_is_capped_in_the_record() -> None:
+    # Produce twice the retention cap; the record keeps only the bounded tail (no ballooning),
+    # while the truncation is announced rather than silent.
+    produced = _MAX_RETAINED_CHARS * 2
+    code = f"import sys\nsys.stdout.write('y' * {produced})\n"
+    result = await asyncio.wait_for(
+        Executor().run_step(Step(name="flood", command=_py(code)), RunContext()), timeout=15
+    )
+    assert result.state is RunState.SUCCEEDED
+    assert "truncated" in result.stdout  # the drop is announced
+    assert len(result.stdout) <= _MAX_RETAINED_CHARS + 80  # notice + capped tail, not 512 KiB
+    assert result.stdout.rstrip().endswith("y")  # the retained slice is the tail
+
+
+async def test_streaming_survives_timeout_with_partial_output() -> None:
+    # Output produced before a timeout is both streamed out and retained; the kill path
+    # (terminate group, then drain to EOF) does not lose what the child already emitted.
+    code = (
+        "import sys, time\n"
+        "sys.stdout.write('before-timeout\\n'); sys.stdout.flush()\n"
+        "time.sleep(30)\n"
+    )
+    recorder = _Recorder()
+    step = Step(name="slow", command=_py(code), timeout_s=0.5)
+    result = await asyncio.wait_for(
+        Executor().run_step(step, RunContext(), on_output=recorder), timeout=10
+    )
+    assert result.state is RunState.TIMED_OUT
+    assert any("before-timeout" in c.text for _, c in recorder.chunks)  # streamed before kill
+    assert "before-timeout" in result.stdout  # and retained on the record
+
+
+# --------------------------------------------------------------------------- #
+# Retention/decoding units: the bounded buffer and the incremental reader.     #
+# --------------------------------------------------------------------------- #
+
+
+def test_bounded_text_evicts_oldest_and_announces_truncation() -> None:
+    buf = _BoundedText(cap=10)
+    buf.add("")  # empty add is a no-op, retained nothing
+    buf.add("aaaaa")
+    buf.add("bbbbb")
+    buf.add("ccccc")  # total 15 > cap 10 → oldest "aaaaa" evicted
+    rendered = buf.render()
+    assert "truncated" in rendered
+    assert rendered.endswith("bbbbbccccc")
+    assert "aaaaa" not in rendered
+
+
+def test_bounded_text_trims_a_single_oversized_chunk() -> None:
+    buf = _BoundedText(cap=5)
+    buf.add("abcdefghij")  # one chunk larger than the whole cap
+    rendered = buf.render()
+    assert "truncated" in rendered
+    assert rendered.endswith("fghij")  # only the last 5 chars survive
+
+
+def test_bounded_text_without_overflow_has_no_notice() -> None:
+    buf = _BoundedText(cap=100)
+    buf.add("hello")
+    assert buf.render() == "hello"
+
+
+async def test_pump_flushes_an_incomplete_multibyte_sequence_at_eof() -> None:
+    # A read boundary (or EOF) that splits a multi-byte character must not be lost or mojibake:
+    # the incremental decoder holds the partial bytes and flushes a replacement char at EOF.
+    reader = asyncio.StreamReader()
+    reader.feed_data(b"\xe2\x9c")  # first two bytes of ✓ (U+2713), truncated before the third
+    reader.feed_eof()
+    buf = _BoundedText()
+    chunks: list[OutputChunk] = []
+
+    async def sink(chunk: OutputChunk) -> None:
+        chunks.append(chunk)
+
+    await _pump(reader, StreamName.STDOUT, sink, buf)
+    assert chr(0xFFFD) in buf.render()  # flushed at EOF, not dropped
+    assert chunks and chunks[-1].stream is StreamName.STDOUT
+    assert chr(0xFFFD) in chunks[-1].text
+
+
+async def test_pump_flushes_at_eof_even_without_a_sink() -> None:
+    # The same EOF flush must still retain the partial character when no sink is attached
+    # (the record path is independent of the live stream).
+    reader = asyncio.StreamReader()
+    reader.feed_data(b"\xe2\x9c")
+    reader.feed_eof()
+    buf = _BoundedText()
+    await _pump(reader, StreamName.STDOUT, None, buf)
+    assert chr(0xFFFD) in buf.render()
