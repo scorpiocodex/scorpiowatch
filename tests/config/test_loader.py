@@ -81,7 +81,7 @@ def test_defaults_are_applied(tmp_path: Path) -> None:
     trigger = load(path).triggers[0]
     assert trigger.source == "filesystem"  # default source
     assert trigger.threshold == 0.5
-    assert trigger.cooldown_ms == 0
+    assert trigger.cooldown_ms is None  # unset → the Scheduler's default window applies
     assert trigger.workflow.steps[0].timeout_s is None  # opt-in timeout
 
 

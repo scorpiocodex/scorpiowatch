@@ -167,6 +167,7 @@ class RunReporter:
         self._err = err_console if err_console is not None else _stderr_console
         self._views: dict[UUID, _RunView] = {}
         self._liveness = _Liveness(self._console)
+        self._suppressed = 0  # fires dropped by cooldown this session (surfaced in the summary)
 
     # -- Banner / summary (invoked directly by the run command) --------------- #
 
@@ -204,17 +205,23 @@ class RunReporter:
                     "succeeded": succeeded,
                     "failed": failed,
                     "cancelled": cancelled,
+                    "suppressed": self._suppressed,
                 }
             )
             return
         if not records:
             self._console.print("  [muted]no runs[/muted]")
             return
+        # A coalesced suppressed count so a quieter run's silence is never mistaken for a
+        # missed change; the per-event detail lives in --verbose / --json.
+        suppressed = (
+            f"  ·  [muted]{self._suppressed} suppressed[/muted]" if self._suppressed else ""
+        )
         self._console.print()
         self._console.print(
             f"  processed {len(records)} run(s): "
             f"[success]{succeeded} succeeded[/success], "
-            f"[failure]{failed} failed[/failure], {cancelled} cancelled"
+            f"[failure]{failed} failed[/failure], {cancelled} cancelled{suppressed}"
         )
 
     # -- RunReporter port ----------------------------------------------------- #
@@ -280,6 +287,25 @@ class RunReporter:
                     "run_id": str(run.run_id),
                     "status": run.state.value,
                     "duration_s": duration,
+                }
+            )
+
+    def admission_suppressed(self, *, trigger_name: str, path: str, remaining_ms: int) -> None:
+        """Count a cooldown suppression; emit it as a JSON event so the machine stream is complete.
+
+        The default/quiet human views stay quiet-on-success — the count is coalesced into the
+        summary; ``--verbose`` already sees the ``admission.suppressed`` structlog line, so the
+        reporter adds nothing there.
+        """
+        self._suppressed += 1
+        if self._mode is OutputMode.JSON:
+            self._emit_json(
+                {
+                    "event": "admission.suppressed",
+                    "reason": "cooldown",
+                    "trigger": trigger_name,
+                    "path": path,
+                    "remaining_ms": remaining_ms,
                 }
             )
 

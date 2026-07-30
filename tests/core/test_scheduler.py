@@ -15,6 +15,7 @@ from uuid import uuid4
 
 import pytest
 
+import watchflow.core.scheduler as scheduler_mod
 from watchflow.core.events import BackpressureStrategy, Event, EventBus
 from watchflow.core.scheduler import Run, Scheduler
 from watchflow.core.triggers import GlobMatch, Trigger, TriggerEngine, TriggerFired
@@ -164,8 +165,11 @@ async def test_failing_workflow_is_recorded_failed(tmp_path: Path) -> None:
 async def test_multiple_fired_triggers_all_run(tmp_path: Path) -> None:
     scheduler = Scheduler(max_parallel=3)
     outs = [tmp_path / f"r{i}.txt" for i in range(5)]
-    for out in outs:
-        await scheduler.submit(make_fired(Workflow(name="wf", steps=[_writer_step("w", out)])))
+    # Distinct trigger names → distinct cooldown keys, so all five admit (cooldown collapses
+    # re-fires of the *same* trigger+path, not distinct triggers).
+    for i, out in enumerate(outs):
+        wf = Workflow(name="wf", steps=[_writer_step("w", out)])
+        await scheduler.submit(make_fired(wf, name=f"t{i}"))
     await scheduler.drain()
     for out in outs:
         assert await _read(out) == "done"
@@ -184,9 +188,10 @@ async def test_max_parallel_one_serializes_runs(tmp_path: Path) -> None:
         "open(sys.argv[2], 'w').write(str(time.time()))\n"
     )
     spans = [(tmp_path / f"s{i}.txt", tmp_path / f"e{i}.txt") for i in range(2)]
-    for start, end in spans:
+    for i, (start, end) in enumerate(spans):
         step = Step(name="w", command=_py(span_code, str(start), str(end)))
-        await scheduler.submit(make_fired(Workflow(name="wf", steps=[step])))
+        # Distinct trigger names so both runs admit (cooldown suppresses same-key re-fires).
+        await scheduler.submit(make_fired(Workflow(name="wf", steps=[step]), name=f"t{i}"))
     await scheduler.drain()
     intervals = sorted([(float(await _read(s)), float(await _read(e))) for s, e in spans])
     assert intervals[0][1] <= intervals[1][0]  # first run ended before the second started
@@ -226,11 +231,11 @@ async def test_unexpected_executor_error_is_contained_as_failed(tmp_path: Path) 
 
 
 # --------------------------------------------------------------------------- #
-# Deferred §4 controls are stubbed with versions, not silently omitted.        #
+# Cooldown disabled (cooldown_ms=0) admits every fire; the other §4 controls stay deferred.  #
 # --------------------------------------------------------------------------- #
 
 
-async def test_admission_controls_are_deferred_every_fire_runs(tmp_path: Path) -> None:
+async def test_cooldown_disabled_admits_every_fire(tmp_path: Path) -> None:
     markers = tmp_path / "markers"
     markers.mkdir()
     # Each run's subprocess drops its OWN uniquely-named marker (a fresh UUID minted inside the
@@ -241,12 +246,11 @@ async def test_admission_controls_are_deferred_every_fire_runs(tmp_path: Path) -
         "open(os.path.join(sys.argv[1], uuid.uuid4().hex + '.txt'), 'w').write('ran')"
     )
     wf = Workflow(name="wf", steps=[Step(name="w", command=_py(code, str(markers)))])
-    scheduler = Scheduler(default_cooldown_ms=5000)
-    # The cooldown window is stored per §4, but no control is active yet in v0.1.0.
-    assert scheduler.default_cooldown_ms == 5000
+    scheduler = Scheduler(default_cooldown_ms=0)  # cooldown off → no suppression at all
+    assert scheduler.default_cooldown_ms == 0
     fired = make_fired(wf)
     assert scheduler._admission_blocked(fired) is False
-    # Two identical fires within the cooldown window both admit and run (no dedupe/cooldown).
+    # Two identical fires that WOULD be collapsed by cooldown both admit and run when it's off.
     r1 = await scheduler.admit(fired)
     r2 = await scheduler.admit(fired)
     await scheduler.drain()
@@ -255,6 +259,127 @@ async def test_admission_controls_are_deferred_every_fire_runs(tmp_path: Path) -
     assert len(list(markers.iterdir())) == 2  # both distinct runs executed, order-independent
     assert len(scheduler.records) == 2
     assert all(run.state is RunState.SUCCEEDED for run in scheduler.records)
+
+
+# --------------------------------------------------------------------------- #
+# Leading-edge cooldown (§4): suppress redundant re-fires of one logical change.
+# --------------------------------------------------------------------------- #
+
+
+class _CooldownRecorder:
+    """A minimal RunReporter that records cooldown suppressions (the observability seam)."""
+
+    def __init__(self) -> None:
+        self.suppressed: list[tuple[str, str, int]] = []
+
+    def run_started(self, run: Run) -> None:
+        pass
+
+    async def on_output(self, run: Run, chunk: object) -> None:
+        pass
+
+    def run_finished(self, run: Run) -> None:
+        pass
+
+    def admission_suppressed(self, *, trigger_name: str, path: str, remaining_ms: int) -> None:
+        self.suppressed.append((trigger_name, path, remaining_ms))
+
+
+def _fire(wf: Workflow, *, name: str = "t", path: str = "src/api.py") -> TriggerFired:
+    """A TriggerFired for ``wf`` carrying a specific trigger name and matched path."""
+    return TriggerFired(trigger=make_trigger(wf, name=name), event=make_event(path=path))
+
+
+async def test_cooldown_suppresses_a_burst_of_same_key_fires(tmp_path: Path) -> None:
+    recorder = _CooldownRecorder()
+    scheduler = Scheduler(default_cooldown_ms=5000, reporter=recorder)  # type: ignore[arg-type]
+    wf = Workflow(name="wf", steps=[_writer_step("w", tmp_path / "ran.txt")])
+    # Four fires of the SAME (trigger, path) within the window — one logical change re-notified.
+    results = [await scheduler.admit(_fire(wf)) for _ in range(4)]
+    await scheduler.drain()
+    assert sum(r is not None for r in results) == 1  # only the first (leading edge) admitted
+    assert sum(r is None for r in results) == 3  # the redundant re-fires suppressed
+    assert len(scheduler.records) == 1
+    assert [(t, p) for t, p, _ in recorder.suppressed] == [("t", "src/api.py")] * 3
+    assert all(remaining > 0 for _, _, remaining in recorder.suppressed)  # window still live
+
+
+async def test_cooldown_admits_distinct_paths_within_the_window(tmp_path: Path) -> None:
+    scheduler = Scheduler(default_cooldown_ms=5000)
+    for path in ("a.py", "b.py"):
+        wf = Workflow(name="wf", steps=[_writer_step("w", tmp_path / f"{path}.done")])
+        assert await scheduler.admit(_fire(wf, path=path)) is not None  # distinct key → admits
+    await scheduler.drain()
+    assert len(scheduler.records) == 2  # different files are different changes — both run
+
+
+async def test_cooldown_admits_again_after_the_window_elapses(tmp_path: Path) -> None:
+    scheduler = Scheduler(default_cooldown_ms=50)  # short window, real monotonic clock
+    wf = Workflow(name="wf", steps=[_writer_step("w", tmp_path / "ran.txt")])
+    assert await scheduler.admit(_fire(wf)) is not None  # first opens the window
+    assert await scheduler.admit(_fire(wf)) is None  # within the window → suppressed
+    await asyncio.sleep(0.15)  # the 50 ms window fully elapses
+    assert await scheduler.admit(_fire(wf)) is not None  # window expired → admits again
+    await scheduler.drain()
+    assert len(scheduler.records) == 2  # first and third ran; the middle was suppressed
+
+
+async def test_per_trigger_cooldown_ms_zero_disables_cooldown(tmp_path: Path) -> None:
+    scheduler = Scheduler(default_cooldown_ms=5000)  # default on…
+    wf = Workflow(name="wf", steps=[_writer_step("w", tmp_path / "ran.txt")])
+    # …but this trigger sets cooldown_ms=0, opting out entirely.
+    trigger = Trigger(
+        name="t", source="filesystem", match=GlobMatch(pattern="**/*"), cooldown_ms=0, workflow=wf
+    )
+    fired = TriggerFired(trigger=trigger, event=make_event())
+    assert await scheduler.admit(fired) is not None
+    assert await scheduler.admit(fired) is not None  # no suppression: cooldown disabled
+    await scheduler.drain()
+    assert len(scheduler.records) == 2
+
+
+async def test_cooldown_never_suppresses_the_first_fire(tmp_path: Path) -> None:
+    # The property that makes cooldown inert under `--once`: the first (and, in --once, only)
+    # fire is always outside any window, so it is admitted even with cooldown on.
+    scheduler = Scheduler(default_cooldown_ms=5000)
+    wf = Workflow(name="wf", steps=[_writer_step("w", tmp_path / "ran.txt")])
+    assert await scheduler.admit(_fire(wf)) is not None
+    await scheduler.drain()
+    assert len(scheduler.records) == 1
+
+
+async def test_suppressed_fire_emits_the_structlog_event(tmp_path: Path) -> None:
+    from structlog.testing import capture_logs
+
+    scheduler = Scheduler(default_cooldown_ms=5000)
+    wf = Workflow(name="wf", steps=[_writer_step("w", tmp_path / "ran.txt")])
+    await scheduler.admit(_fire(wf))  # first admits, opens the window
+    with capture_logs() as logs:
+        await scheduler.admit(_fire(wf))  # suppressed → observable, never silent (Article VIII)
+    await scheduler.drain()
+    suppressions = [record for record in logs if record["event"] == "admission.suppressed"]
+    assert len(suppressions) == 1
+    assert suppressions[0]["reason"] == "cooldown"
+    assert suppressions[0]["trigger"] == "t"
+    assert suppressions[0]["path"] == "src/api.py"
+
+
+def test_evict_expired_prunes_expired_keys_over_threshold(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(scheduler_mod, "_COOLDOWN_EVICT_THRESHOLD", 2)
+    scheduler = Scheduler()
+    now = 100.0
+    scheduler._cooldowns = {("t", "a"): now - 1, ("t", "b"): now + 10, ("t", "c"): now - 5}
+    scheduler._evict_expired(now)  # len 3 > threshold 2 → rebuild, dropping expired a and c
+    assert set(scheduler._cooldowns) == {("t", "b")}
+
+
+def test_evict_expired_is_a_noop_under_threshold(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(scheduler_mod, "_COOLDOWN_EVICT_THRESHOLD", 2)
+    scheduler = Scheduler()
+    now = 100.0
+    scheduler._cooldowns = {("t", "a"): now - 1, ("t", "b"): now + 10}  # len 2 == threshold
+    scheduler._evict_expired(now)  # under threshold → no scan, expired 'a' retained for now
+    assert set(scheduler._cooldowns) == {("t", "a"), ("t", "b")}
 
 
 def test_max_parallel_must_be_positive() -> None:

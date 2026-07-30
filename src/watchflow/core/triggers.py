@@ -179,8 +179,11 @@ class Trigger(BaseModel):
         match: How events are matched (see ``MatchSpec``).
         threshold: Minimum confidence score, in ``[0, 1]``, required to fire. Unused in
             v0.1.0 boolean matching; consumed by confidence scoring in v0.2.0.
-        cooldown_ms: Minimum spacing between fires, in milliseconds (consumed by the
-            Scheduler, not by matching).
+        cooldown_ms: Minimum spacing between this trigger's fires for one matched path, in
+            milliseconds — the Scheduler's leading-edge cooldown window (§4). ``None`` (the
+            default) uses the Scheduler's default window; ``0`` explicitly disables cooldown
+            for this trigger; ``N > 0`` sets an N-millisecond window. Consumed by the
+            Scheduler, not by matching.
         workflow: The Workflow admitted when this trigger fires.
     """
 
@@ -188,7 +191,7 @@ class Trigger(BaseModel):
     source: str
     match: MatchSpec
     threshold: float = 0.5
-    cooldown_ms: int = 0
+    cooldown_ms: int | None = None
     workflow: Workflow
 
 
