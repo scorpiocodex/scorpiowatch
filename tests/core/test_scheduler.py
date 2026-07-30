@@ -37,8 +37,10 @@ def _py(*code_and_args: str) -> list[str]:
 
 def _writer_step(name: str, path: Path, text: str = "done") -> Step:
     """A Step whose subprocess writes ``text`` to ``path``."""
-    return Step(name=name, command=_py("import sys; open(sys.argv[1], 'w').write(sys.argv[2])",
-                                        str(path), text))
+    return Step(
+        name=name,
+        command=_py("import sys; open(sys.argv[1], 'w').write(sys.argv[2])", str(path), text),
+    )
 
 
 def make_event(path: str = "src/api.py", *, source: str = "filesystem") -> Event:
@@ -54,8 +56,9 @@ def make_event(path: str = "src/api.py", *, source: str = "filesystem") -> Event
 
 def make_trigger(workflow: Workflow, *, name: str = "t", pattern: str = "**/*") -> Trigger:
     """Build a glob Trigger bound to ``workflow``."""
-    return Trigger(name=name, source="filesystem", match=GlobMatch(pattern=pattern),
-                   workflow=workflow)
+    return Trigger(
+        name=name, source="filesystem", match=GlobMatch(pattern=pattern), workflow=workflow
+    )
 
 
 def make_fired(workflow: Workflow, *, name: str = "t") -> TriggerFired:
@@ -126,8 +129,9 @@ async def test_submit_runs_workflow_end_to_end_through_the_bus(tmp_path: Path) -
     out = tmp_path / "e2e.txt"
     bus = EventBus(maxsize=16, backpressure=BackpressureStrategy.BLOCK)
     engine = TriggerEngine()
-    engine.register(make_trigger(Workflow(name="wf", steps=[_writer_step("w", out)]),
-                                 pattern="**/*.py"))
+    engine.register(
+        make_trigger(Workflow(name="wf", steps=[_writer_step("w", out)]), pattern="**/*.py")
+    )
     scheduler = Scheduler()
     engine_task = asyncio.create_task(engine.evaluate(bus, scheduler.submit))
     try:

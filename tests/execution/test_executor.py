@@ -90,9 +90,7 @@ async def test_multi_step_runs_in_order(tmp_path: Path) -> None:
 
 async def test_captures_stdout_and_stderr() -> None:
     code = "import sys; print('to-out'); print('to-err', file=sys.stderr)"
-    result = await Executor().run(
-        Workflow(name="wf", steps=[Step(name="io", command=_py(code))])
-    )
+    result = await Executor().run(Workflow(name="wf", steps=[Step(name="io", command=_py(code))]))
     step = result.steps[0]
     assert step.stdout.strip() == "to-out"
     assert step.stderr.strip() == "to-err"
