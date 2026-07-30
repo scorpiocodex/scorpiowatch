@@ -49,6 +49,13 @@ Each `Step` `kind` has its own safe-execution contract:
 | `http` | `httpx.AsyncClient` | Timeout-bound; response body size capped; no eval of response content |
 | `mcp_tool` | `MCPClientGateway.call_tool` | Target server + tool schema-validated; response treated as untrusted input (see [`MCP_INTEGRATION.md`](./MCP_INTEGRATION.md)) |
 
+### 2.1 Subprocess output: streamed and bounded
+
+A `subprocess` Step's stdout and stderr are handled two ways at once — a **live stream** and a **bounded record**:
+
+- **Streamed.** Both pipes are drained concurrently (independent reader tasks, so a silent stream never stalls a chatty one) and each decoded chunk is handed to an optional output sink *as the child produces it* — output is visible live rather than buffered into a lump at exit. The sink is awaited, so a slow consumer back-pressures the reader, which stops pulling from the pipe, so the OS pipe buffer throttles the child (the `EventBus` BLOCK discipline, §4). The sink is the human/JSON rendering path ([`UI_DESIGN.md`](./UI_DESIGN.md) §4.3).
+- **Bounded record.** The `StepResult` still retains the output, but capped per stream (**256 KiB, tail-biased**, with a one-line truncation notice when exceeded). The tail is kept because a failing run's summary and tracebacks sit at the *end*; a runaway producer is capped rather than retained whole, so a multi-minute chatty run cannot balloon memory. A machine consumer that needs everything reads the live stream (`--json`), which is not capped.
+
 ---
 
 ## 3. DAG execution semantics

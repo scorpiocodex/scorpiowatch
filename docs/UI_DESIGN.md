@@ -147,7 +147,8 @@ watchflow run [PATH]                start the engine
   --tui / --no-tui                  attach the TUI (default: headless)
   --dry-run                         evaluate Triggers, never execute
   --once                            process one event batch, then exit
-  --verbose / -v                    raise log level
+  --verbose / -v                    full engine records + stream all subprocess output
+  --quiet / -q                      only the final tally (plus any failure's output)
 
 watchflow init                       scaffold a watchflow.toml
 watchflow check                      validate config without running
@@ -196,6 +197,22 @@ $ watchflow run .
   14:32:44   ·   run-tests                   ✗ failed           2.6s  exit 1
 ```
 *Colors: `MOD` orange, `NEW` green, `DEL` red — matching the Stream view's event-kind colors exactly. `✓ succeeded` green, `✗ failed` red, run IDs blue, everything else default or secondary text.*
+
+**Two voices, and the default output policy.** `run` separates the **engine voice** (the lifecycle lines above: a run matched, started, and finished with its state + duration) from the **subprocess voice** (the watched program's own stdout/stderr). The engine's *raw* record — full UUIDs, argv, `timeout_s`, float durations — is never the default human view; the compact lines above are, and the raw record is available under `--verbose` and `--json`. The default policy for the subprocess voice is **quiet-on-success, loud-on-failure**:
+
+- **While a step runs:** a single transient **liveness line** — a spinner + the run's name + elapsed time + the program's most recent output line — updated in place. It appears only after the step has run ~1s (so a fast step doesn't flash one) and is erased when the step finishes. It is TTY-only: piped or in CI it is inert, so no control codes leak into a captured log. This proves a long (e.g. 4-minute) run is alive without scrolling hundreds of lines past.
+- **On success:** the program's output is not shown — the liveness line already proved progress.
+- **On failure or timeout:** the failing step's retained output **tail** (the §2.1 bounded 256 KiB) is printed, framed as a titled block so the program's voice is visually distinct from the engine's.
+
+`--verbose` streams **all** subprocess output live (success included; stdout→stdout, stderr→stderr) and shows the full engine records — the liveness spinner steps aside, since full output and a transient line cannot share the terminal region. `--quiet` prints only the final tally plus any failure's tail — no per-run lines, no spinner, no banner.
+
+**`--json` and subprocess output.** In addition to the lifecycle events below, `--json` emits one `step.output` event per chunk **as it is produced** (streamed incrementally, never buffered into one event) and — unlike the human view — **uncapped**, since truncating a machine stream is worse than truncating a rendered one:
+```
+{"event":"step.output","run_id":"r_5117","stream":"stdout","text":"collected 42 items\n"}
+```
+Pre-run failures under `--json` (a config or startup error, before any run exists) currently render as the human `✗` block on **stderr**, keeping the stdout JSON stream clean; emitting them as machine-readable JSON error events is a possible later addition.
+
+**Direction — docker-compose-style passthrough (not a v0.1.x deliverable).** The passthrough modes (`--verbose` today; parallel-step and daemon output later) will adopt compose-style attribution: each source (trigger/step) gets a **stable color**, a **prefix**, and **column-aligned** names, so interleaved concurrent output stays readable (you can tell at a glance which line came from which step). This is deliberately reserved for the "show me everything, and several things run at once" end of the dial — it earns its complexity only once there is genuine concurrency (the `DAGExecutor`, v2.0; the daemon, v1.1). It does **not** change the default view, which stays quiet-on-success.
 
 **`watchflow check`**
 ```
@@ -282,13 +299,16 @@ $ watchflow run .
 
 ### 4.4 Exit codes
 
+The authoritative table is [`EXECUTION_MODEL.md`](./EXECUTION_MODEL.md) §7.2; this mirrors it.
+
 | Code | Meaning |
 |---|---|
 | `0` | Success |
 | `1` | A Run failed (aggregate failure, relevant to `--once` / CI use) |
 | `2` | Configuration error |
-| `3` | Engine startup failure (adapter unavailable, port/socket in use) |
-| `130` | Interrupted (`SIGINT` / Ctrl+C) |
+| `3` | Usage error (malformed CLI invocation, surfaced by `typer` before the Engine starts) |
+| `4` | Engine startup / runtime failure (adapter unavailable, socket bind in use) |
+| `130` | Interrupted (`SIGINT` / Ctrl+C) — the `SIGTERM` analogue is `143` |
 
 ---
 

@@ -64,6 +64,10 @@ class Trigger(BaseModel):
     cooldown_ms: int = 0
     workflow: Workflow
 
+class TriggerFired(BaseModel):
+    trigger: Trigger                  # the trigger that matched
+    event: Event                      # the event it matched against
+
 class TriggerEngine:
     def register(self, trigger: Trigger) -> None: ...
     async def evaluate(self, event: Event) -> TriggerFired | None: ...
