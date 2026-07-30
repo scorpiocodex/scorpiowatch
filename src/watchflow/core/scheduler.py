@@ -22,13 +22,14 @@ joins with ``:`` (they may import each other), so the layering stays intact.
 """
 
 import asyncio
+import time
 from dataclasses import dataclass, field
 from uuid import UUID, uuid4
 
 import structlog
 
 from watchflow.core.reporting import RunReporter
-from watchflow.core.triggers import TriggerFired
+from watchflow.core.triggers import Trigger, TriggerFired
 from watchflow.core.workflow import Workflow
 from watchflow.execution.executor import (
     Executor,
@@ -40,6 +41,20 @@ from watchflow.execution.executor import (
 )
 
 _log = structlog.get_logger(__name__)
+
+# On-by-default leading-edge cooldown window (§4). "Low hundreds of ms": long enough to
+# collapse the redundant re-fires one logical change produces, short enough not to hold up a
+# genuinely distinct edit. Source-agnostic (it stacks with, rather than replaces, a Source
+# Adapter's own debounce), and tunable per trigger via ``Trigger.cooldown_ms``.
+_DEFAULT_COOLDOWN_MS = 300
+
+# The cooldown map holds only keys with a live (unexpired) window; expired entries are purged
+# lazily on admission. To keep that purge off the hot path, it runs only once the map has grown
+# past this many entries — normal operation (a handful of distinct paths per window) never scans.
+_COOLDOWN_EVICT_THRESHOLD = 1024
+
+# The cooldown key: which trigger, and which matched path (empty for pathless sources).
+_CooldownKey = tuple[str, str]
 
 
 @dataclass
@@ -66,6 +81,20 @@ class Run:
     result: RunResult | None = field(default=None)
 
 
+def _cooldown_key(fired: TriggerFired) -> _CooldownKey:
+    """The cooldown key for ``fired``: its trigger name and the matched event's path.
+
+    The path is taken from the event that *matched* the trigger (``event.payload["path"]``),
+    so it is inherently the path the glob matched — not a temp file. An editor's
+    write-to-temp-then-rename fires the trigger only on the events whose path matches its glob
+    (the temp file's ``.tmp``/``.swp`` name does not), so the burst collapses to the one stable
+    post-rename path. Pathless sources (cron, manual) yield an empty path, degrading the key to
+    per-trigger.
+    """
+    path = fired.event.payload.get("path", "")
+    return (fired.trigger.name, str(path))
+
+
 class Scheduler:
     """Admit ``TriggerFired`` records and run their Workflows on the ``Executor``.
 
@@ -82,7 +111,7 @@ class Scheduler:
         executor: Executor | None = None,
         *,
         max_parallel: int = 4,
-        default_cooldown_ms: int = 0,
+        default_cooldown_ms: int = _DEFAULT_COOLDOWN_MS,
         reporter: RunReporter | None = None,
     ) -> None:
         """Create a Scheduler driving ``executor`` with at most ``max_parallel`` runs.
@@ -91,8 +120,9 @@ class Scheduler:
             executor: The Executor that runs each admitted Workflow; a fresh one is created
                 if omitted.
             max_parallel: Upper bound on concurrently-executing runs; must be positive.
-            default_cooldown_ms: The §4 default cooldown window. Stored but **not enforced**
-                in v0.1.0 — cooldown is a v0.3.0 control (see :meth:`_admission_blocked`).
+            default_cooldown_ms: The §4 cooldown window applied to a trigger that does not set
+                its own ``cooldown_ms``. Leading-edge, on by default (see
+                :meth:`_admission_blocked`); pass ``0`` to disable cooldown globally.
             reporter: Optional :class:`~watchflow.core.reporting.RunReporter` narrated as each
                 run starts, streams output, and finishes (the CLI's output layer). ``None``
                 runs silently.
@@ -109,6 +139,9 @@ class Scheduler:
         self._semaphore = asyncio.Semaphore(max_parallel)
         self._tasks: dict[UUID, asyncio.Task[None]] = {}
         self._records: list[Run] = []
+        # Cooldown state: matched key → monotonic deadline (first-fire time + window). A fire
+        # is suppressed while now < deadline (leading edge, fixed window from the first fire).
+        self._cooldowns: dict[_CooldownKey, float] = {}
 
     @property
     def max_parallel(self) -> int:
@@ -131,27 +164,71 @@ class Scheduler:
         return tuple(self._records)
 
     def _admission_blocked(self, fired: TriggerFired) -> bool:
-        """Whether §4's admission controls reject ``fired``. Always ``False`` in v0.1.0.
+        """Whether §4's admission controls reject ``fired``. Enforces **cooldown** in v0.1.0.
 
-        The controls §4 gates admission on are all deferred, and this is their single
-        future enforcement point:
+        Cooldown is a leading-edge throttle keyed on ``(trigger.name, matched_path)``: the
+        first fire for a key is admitted and opens a fixed window (``window`` ms from that
+        fire); a subsequent fire for the same key while the window is live is **suppressed** —
+        an intentional, observable admission decision (Article VIII), logged as
+        ``admission.suppressed`` and surfaced to the reporter, never a silent drop. When the
+        window elapses the next fire is admitted and opens a fresh window. This is the single
+        enforcement point; the still-deferred §4 controls share it:
 
         - **dedupe** — ``sha256(trigger.name + sorted(event.payload keys))`` (v0.3.0).
-        - **cooldown** — the ``default_cooldown_ms`` / ``Trigger.cooldown_ms`` window
-          (v0.3.0).
         - **rate limiting** — separate MCP vs. human/cron counters
           (``SECURITY_MODEL.md``; v0.3.0).
         - **threshold** — score-gated admission, once confidence scoring exists (v0.2.0).
-
-        Until then every fired Trigger is admitted.
 
         Args:
             fired: The fired Trigger under consideration.
 
         Returns:
-            ``False`` — no admission control is active in v0.1.0.
+            ``True`` if ``fired`` is suppressed by cooldown; otherwise ``False`` (and the
+            key's window is opened/refreshed as a side effect of admission).
         """
+        window_ms = self._cooldown_window_ms(fired.trigger)
+        if window_ms <= 0:
+            return False  # cooldown disabled for this trigger (cooldown_ms=0 or default 0)
+        now = time.monotonic()
+        self._evict_expired(now)
+        key = _cooldown_key(fired)
+        deadline = self._cooldowns.get(key)
+        if deadline is not None and now < deadline:
+            self._report_suppressed(fired, key, remaining_ms=round((deadline - now) * 1000))
+            return True
+        self._cooldowns[key] = now + window_ms / 1000.0
         return False
+
+    def _cooldown_window_ms(self, trigger: Trigger) -> int:
+        """The effective cooldown window for ``trigger``: its own, else the default."""
+        return trigger.cooldown_ms if trigger.cooldown_ms is not None else self._default_cooldown_ms
+
+    def _evict_expired(self, now: float) -> None:
+        """Purge cooldown keys whose window has fully elapsed (lazy, off the hot path).
+
+        Only rebuilds once the map is large: a live window's key must be retained to suppress
+        its re-fires, so the map is naturally bounded by the distinct keys fired within one
+        window — this just reclaims keys after their windows expire, under a long-running daemon.
+        """
+        if len(self._cooldowns) <= _COOLDOWN_EVICT_THRESHOLD:
+            return
+        self._cooldowns = {key: dl for key, dl in self._cooldowns.items() if dl > now}
+
+    def _report_suppressed(
+        self, fired: TriggerFired, key: _CooldownKey, *, remaining_ms: int
+    ) -> None:
+        """Record a cooldown suppression: a structured log line, and the reporter (for --json)."""
+        _log.info(
+            "admission.suppressed",
+            reason="cooldown",
+            trigger=fired.trigger.name,
+            path=key[1],
+            remaining_ms=remaining_ms,
+        )
+        if self._reporter is not None:
+            self._reporter.admission_suppressed(
+                trigger_name=fired.trigger.name, path=key[1], remaining_ms=remaining_ms
+            )
 
     async def admit(self, fired: TriggerFired) -> Run | None:
         """Admit ``fired`` and launch its Workflow as a background run (``§4``).
@@ -169,7 +246,9 @@ class Scheduler:
             (never ``None`` in v0.1.0).
         """
         if self._admission_blocked(fired):
-            return None  # pragma: no cover — v0.3.0 rejection path (dedupe/cooldown/rate-limit)
+            return (
+                None  # suppressed by cooldown (§4) — an observed decision, see _report_suppressed
+            )
         run = Run(
             run_id=uuid4(),
             trigger_name=fired.trigger.name,

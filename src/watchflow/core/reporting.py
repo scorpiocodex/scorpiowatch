@@ -43,3 +43,13 @@ class RunReporter(Protocol):
     def run_finished(self, run: "Run") -> None:
         """Called once ``run`` has reached a terminal state (result available unless cancelled)."""
         ...
+
+    def admission_suppressed(self, *, trigger_name: str, path: str, remaining_ms: int) -> None:
+        """Called when a fire is suppressed by cooldown (§4) instead of becoming a Run.
+
+        A suppression is an intentional, observable admission decision, not a silent drop
+        (Article VIII); this is how it reaches ``--json`` (and a coalesced count for the human
+        summary), separate from the ``admission.suppressed`` structlog record that ``--verbose``
+        renders. ``remaining_ms`` is how long the trigger+path's cooldown window still has to run.
+        """
+        ...

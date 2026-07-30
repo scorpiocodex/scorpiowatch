@@ -136,7 +136,9 @@ def _build_triggers(table: dict[str, Any], index: int, path: Path) -> list[Trigg
         "name": name,
         "source": source,
         "threshold": table.get("threshold", 0.5),
-        "cooldown_ms": table.get("cooldown_ms", 0),
+        # Absent → None so the Scheduler applies its default window; an explicit 0 disables
+        # cooldown for the trigger, N > 0 sets an N-ms window (see Trigger.cooldown_ms).
+        "cooldown_ms": table.get("cooldown_ms"),
         "workflow": workflow,
     }
     triggers: list[Trigger] = []

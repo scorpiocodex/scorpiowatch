@@ -355,3 +355,40 @@ def test_default_liveness_persists_until_the_last_of_two_runs_finishes() -> None
 def test_active_label_is_a_placeholder_with_no_runs() -> None:
     reporter, _, _ = _reporter(OutputMode.DEFAULT)
     assert reporter._active_label() == "running…"
+
+
+# --------------------------------------------------------------------------- #
+# Cooldown suppression: observable in --json and coalesced into the summary.    #
+# --------------------------------------------------------------------------- #
+
+
+def test_admission_suppressed_emits_a_json_event() -> None:
+    reporter, out, _ = _reporter(OutputMode.JSON)
+    reporter.admission_suppressed(trigger_name="run-tests", path="src/api.py", remaining_ms=250)
+    assert json.loads(out.getvalue().strip()) == {
+        "event": "admission.suppressed",
+        "reason": "cooldown",
+        "trigger": "run-tests",
+        "path": "src/api.py",
+        "remaining_ms": 250,
+    }
+
+
+def test_admission_suppressed_count_coalesces_into_the_default_summary() -> None:
+    reporter, out, _ = _reporter(OutputMode.DEFAULT)
+    reporter.admission_suppressed(trigger_name="t", path="a.py", remaining_ms=250)
+    reporter.admission_suppressed(trigger_name="t", path="a.py", remaining_ms=100)
+    reporter.summary((_run(state=RunState.SUCCEEDED),))
+    assert "2 suppressed" in out.getvalue()  # silence isn't mistaken for a missed change
+
+
+def test_admission_suppressed_count_in_the_json_summary() -> None:
+    reporter, out, _ = _reporter(OutputMode.JSON)
+    reporter.admission_suppressed(trigger_name="t", path="a.py", remaining_ms=250)
+    reporter.summary((_run(state=RunState.SUCCEEDED),))
+    summary = next(
+        json.loads(line)
+        for line in out.getvalue().splitlines()
+        if line.strip() and json.loads(line)["event"] == "run.summary"
+    )
+    assert summary["suppressed"] == 1
