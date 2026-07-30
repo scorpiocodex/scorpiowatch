@@ -1,0 +1,38 @@
+# watchflow.toml — a runnable local-dev example.
+#
+# Watches for changes to .txt and .py files under this directory and runs a tiny
+# cross-platform command (a Python one-liner, so it works on Linux/macOS/Windows without a
+# shell). Try it:
+#
+#   cd examples/local-dev
+#   uv run watchflow run . --config watchflow.toml
+#   # then, in another terminal, touch a file to see a workflow run:
+#   #   echo hi > note.txt
+#   # or run a single batch and exit (CI mode, exits 0 on success / 1 on failure):
+#   uv run watchflow run . --config watchflow.toml --once
+#
+# NOTE: until dedupe lands (v0.3.0) a file matching N of a trigger's patterns fires its
+# workflow N times, so keep a trigger's patterns non-overlapping. The two triggers below
+# match disjoint file types on purpose.
+
+[[trigger]]
+name = "on-text-change"
+source = "filesystem"
+patterns = ["**/*.txt", "**/*.md"]
+
+  [trigger.workflow]
+  # `command` is an argv list run as a subprocess (shell=False) — never a shell string.
+  steps = [
+    { command = ["python", "-c", "print('watchflow: a text file changed')"], timeout_s = 10 },
+  ]
+
+[[trigger]]
+name = "on-python-change"
+source = "filesystem"
+patterns = ["**/*.py"]
+
+  [trigger.workflow]
+  steps = [
+    { name = "announce", command = ["python", "-c", "print('watchflow: a .py file changed')"] },
+    { name = "syntax-check", command = ["python", "-c", "print('watchflow: (pretend) checking syntax…')"], timeout_s = 15 },
+  ]
