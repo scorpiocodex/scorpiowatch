@@ -1,6 +1,6 @@
 # Coding Standard
 
-*Part of the WatchFlow documentation set — see [`WATCHFLOW.md`](./WATCHFLOW.md) for the full index. Implements the values in [`ENGINEERING_PRINCIPLES.md`](./ENGINEERING_PRINCIPLES.md).*
+*Part of the ScorpioWatch documentation set — see [`SCORPIOWATCH.md`](./SCORPIOWATCH.md) for the full index. Implements the values in [`ENGINEERING_PRINCIPLES.md`](./ENGINEERING_PRINCIPLES.md).*
 
 ---
 
@@ -29,14 +29,14 @@
 - **Naming:** modules and packages `snake_case`; classes `PascalCase`; functions/variables `snake_case`; `Protocol`/ABC interfaces suffixed `...Adapter`, `...Step`, `...Exporter` for extension points.
 - **Typing:** `mypy --strict` passes on every module. `Any` is permitted only at the literal boundary where an external, untyped payload enters the system (e.g., a raw webhook body before validation) — and must be narrowed to a `pydantic` model within the same function.
 - **Docstrings:** Google-style (`Args:` / `Returns:` / `Raises:`) on every public function, class, and plugin hook.
-- **Imports:** absolute imports only within `src/watchflow`; no wildcard imports; import order enforced by `ruff` (`stdlib` → `third-party` → local).
+- **Imports:** absolute imports only within `src/swatch`; no wildcard imports; import order enforced by `ruff` (`stdlib` → `third-party` → local).
 - **Line length:** 100 columns, enforced by `ruff format`.
 
 ---
 
 ## 3. Layering enforcement
 
-The four architectural layers in [`ARCHITECTURE.md`](./ARCHITECTURE.md) are enforced mechanically, not just by convention — a single import-linter `layers` contract in CI fails the build whenever a lower layer imports a higher one. In particular `watchflow.core` imports nothing from `watchflow.adapters.*` (the `SourceAdapter` Protocol it needs lives in `watchflow.core.ports` — ADR-0010 Option A), nothing from `watchflow.config` (the direction is one-way, `config → core` — ADR-0012), and nothing from `watchflow.plugins.*`, `watchflow.cli`, or `watchflow.tui`.
+The four architectural layers in [`ARCHITECTURE.md`](./ARCHITECTURE.md) are enforced mechanically, not just by convention — a single import-linter `layers` contract in CI fails the build whenever a lower layer imports a higher one. In particular `swatch.core` imports nothing from `swatch.adapters.*` (the `SourceAdapter` Protocol it needs lives in `swatch.core.ports` — ADR-0010 Option A), nothing from `swatch.config` (the direction is one-way, `config → core` — ADR-0012), and nothing from `swatch.plugins.*`, `swatch.cli`, or `swatch.tui`.
 
 ---
 

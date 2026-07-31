@@ -3,7 +3,7 @@
 The Scheduler owns *when* a Run starts, streams output, and finishes; *how* that is shown
 to a human (or emitted as JSON) is an Interface-layer concern. This Protocol is the boundary
 between them: the Scheduler calls it, the CLI's ``rich`` renderer implements it, and — exactly
-as with :class:`~watchflow.core.ports.SourceAdapter` (ADR-0010 Option A) — ``core`` depends
+as with :class:`~swatch.core.ports.SourceAdapter` (ADR-0010 Option A) — ``core`` depends
 only on the Protocol and never imports ``cli``.
 
 It carries the two voices the output layer separates (``UI_DESIGN.md`` §4.3): the **engine
@@ -15,8 +15,8 @@ from the Executor's streaming sink built in task 1.4 part 1).
 from typing import TYPE_CHECKING, Protocol
 
 if TYPE_CHECKING:
-    from watchflow.core.scheduler import Run
-    from watchflow.execution.executor import OutputChunk
+    from swatch.core.scheduler import Run
+    from swatch.execution.executor import OutputChunk
 
 
 class RunReporter(Protocol):

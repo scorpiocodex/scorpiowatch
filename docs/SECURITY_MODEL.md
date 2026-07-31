@@ -1,12 +1,12 @@
 # Security Model
 
-*Part of the WatchFlow documentation set — see [`WATCHFLOW.md`](./WATCHFLOW.md) for the full index.*
+*Part of the ScorpioWatch documentation set — see [`SCORPIOWATCH.md`](./SCORPIOWATCH.md) for the full index.*
 
 ---
 
 ## 1. Threat model
 
-WatchFlow executes local commands in reaction to events that can, in several configurations, originate outside the machine it runs on. The security model exists to make sure "an event happened" never implies "arbitrary code may run."
+ScorpioWatch executes local commands in reaction to events that can, in several configurations, originate outside the machine it runs on. The security model exists to make sure "an event happened" never implies "arbitrary code may run."
 
 **Adversaries the model defends against:**
 
@@ -19,7 +19,7 @@ WatchFlow executes local commands in reaction to events that can, in several con
 | Compromised upstream dependency | Present in the supply chain unless mitigated |
 | Local, unprivileged user on a shared host | Cannot read another user's `EventStore`, config, or secrets |
 
-**Explicitly out of scope:** protecting against a fully compromised host OS or a user with root/administrator access to the machine WatchFlow runs on.
+**Explicitly out of scope:** protecting against a fully compromised host OS or a user with root/administrator access to the machine ScorpioWatch runs on.
 
 ---
 
@@ -29,7 +29,7 @@ WatchFlow executes local commands in reaction to events that can, in several con
  TRUSTED                SEMI-TRUSTED (sandboxed)         UNTRUSTED (validated at the door)
 ┌──────────────┐        ┌───────────────────┐            ┌───────────────────────────────┐
 │ local config │        │ installed plugins │            │ webhook payloads               │
-│ watchflow.toml│  ───▶ │ (capability-gated)│  ◀───────  │ queue messages                 │
+│ swatch.toml  │  ───▶  │ (capability-gated)│  ◀───────  │ queue messages                 │
 └──────────────┘        └───────────────────┘            │ remote MCP server responses    │
                                                           │ AI agent tool-call arguments    │
                                                           └───────────────────────────────┘
@@ -47,7 +47,7 @@ Restating Article III of [`PROJECT_CONSTITUTION.md`](./PROJECT_CONSTITUTION.md) 
 - **cwd jailing:** a Step's working directory is resolved and checked to be inside the configured project root; symlink escapes are rejected.
 - **Environment scrubbing:** only variables named in an explicit `env_passthrough` allowlist reach the child process. Everything else, including ambient secrets in the parent environment, is withheld by default.
 - **Timeouts:** every Step has a hard timeout; on expiry, the subprocess and its process group are terminated, not just the asyncio task.
-- **No implicit privilege escalation:** WatchFlow never re-execs itself with elevated privileges to satisfy a Step.
+- **No implicit privilege escalation:** ScorpioWatch never re-execs itself with elevated privileges to satisfy a Step.
 
 ---
 
@@ -76,7 +76,7 @@ MCP integration introduces two new classes of caller that need explicit treatmen
 - **Default-deny for destructive Steps:** a Workflow Step marked `destructive: true` (deletes, force-pushes, production deploys) cannot be triggered by an MCP tool call unless the Trigger explicitly sets `allow_mcp_trigger: true`, and may additionally require `requires_confirmation: true`, which blocks execution pending an explicit human acknowledgment.
 - **Provenance tagging:** every `Run` originating from an MCP tool call carries `mcp_origin` metadata (caller identity if available, tool name, protocol version) into the `EventStore`, so the audit trail always distinguishes an AI-agent-initiated Run from a human- or cron-initiated one.
 - **Separate rate limiting:** MCP-originated Runs are rate-limited independently of human/cron-originated Runs, so a misbehaving or looping agent cannot starve the Scheduler for everyone else.
-- **Untrusted remote MCP servers:** when WatchFlow acts as an MCP *client* calling an external server (a Step of kind `mcp_tool`), that server's responses are treated as untrusted input — sanitized and schema-validated before any value from the response can influence a downstream Step's `argv`.
+- **Untrusted remote MCP servers:** when ScorpioWatch acts as an MCP *client* calling an external server (a Step of kind `mcp_tool`), that server's responses are treated as untrusted input — sanitized and schema-validated before any value from the response can influence a downstream Step's `argv`.
 
 ---
 
@@ -84,7 +84,7 @@ MCP integration introduces two new classes of caller that need explicit treatmen
 
 - Secrets are never logged. `structlog` processors redact any field name matching a configurable secret-pattern list (`*_key`, `*_token`, `*_secret`, `password`) before a log line is emitted.
 - Environment passthrough is allowlist-only (§3); there is no "pass everything" mode.
-- WatchFlow does not store, generate, or rotate secrets itself (see Non-goals in [`PROJECT_CONSTITUTION.md`](./PROJECT_CONSTITUTION.md)) — it expects secrets to arrive via the environment or a dedicated secrets-manager plugin.
+- ScorpioWatch does not store, generate, or rotate secrets itself (see Non-goals in [`PROJECT_CONSTITUTION.md`](./PROJECT_CONSTITUTION.md)) — it expects secrets to arrive via the environment or a dedicated secrets-manager plugin.
 
 ---
 

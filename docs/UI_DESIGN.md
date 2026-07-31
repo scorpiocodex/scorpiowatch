@@ -1,8 +1,8 @@
 # UI Design
 
-*Part of the WatchFlow documentation set — see [`WATCHFLOW.md`](./WATCHFLOW.md) for the full index. Governed by [`PROJECT_CONSTITUTION.md`](./PROJECT_CONSTITUTION.md) — in particular §4 ("not a GUI-first product") and Article X ("the UI is always a consumer, never a dependency").*
+*Part of the ScorpioWatch documentation set — see [`SCORPIOWATCH.md`](./SCORPIOWATCH.md) for the full index. Governed by [`PROJECT_CONSTITUTION.md`](./PROJECT_CONSTITUTION.md) — in particular §4 ("not a GUI-first product") and Article X ("the UI is always a consumer, never a dependency").*
 
-WatchFlow has exactly two interface surfaces: a **CLI** for one-shot, scripted, and CI use, and an optional **TUI** for live observability. Both are terminal-native, both are read-only projections of the same observability bus (`structlog` events, `EventStore` queries), and neither is required to run the engine. This document is the single source of truth for how both look and behave, so a contributor building a new command or a new panel has a spec to match instead of guesswork to reverse-engineer from existing code.
+ScorpioWatch has exactly two interface surfaces: a **CLI** for one-shot, scripted, and CI use, and an optional **TUI** for live observability. Both are terminal-native, both are read-only projections of the same observability bus (`structlog` events, `EventStore` queries), and neither is required to run the engine. This document is the single source of truth for how both look and behave, so a contributor building a new command or a new panel has a spec to match instead of guesswork to reverse-engineer from existing code.
 
 ---
 
@@ -76,13 +76,13 @@ The three title-bar dots (red / orange / green) are a decorative macOS-style win
 
 ## 3. TUI design
 
-The interactive reference implementation of this section is [`watchflow_terminal_mockup_7_views.html`](./watchflow_terminal_mockup_7_views.html) — treat it as the living spec; this section is the annotated version. The TUI is a read-only observability window (Article X): it renders the same events the CLI and the MCP Gateway's `query_event_history` tool serve, and holds no privileged access to engine internals.
+The interactive reference implementation of this section is [`scorpiowatch_terminal_mockup_7_views.html`](./scorpiowatch_terminal_mockup_7_views.html) — treat it as the living spec; this section is the annotated version. The TUI is a read-only observability window (Article X): it renders the same events the CLI and the MCP Gateway's `query_event_history` tool serve, and holds no privileged access to engine internals.
 
 ### 3.1 Structure
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│ ● ● ●   watchflow · event-driven workflow orchestration  │  titlebar (traffic lights + build meta)
+│ ● ● ●   swatch · event-driven workflow orchestration    │  titlebar (traffic lights + build meta)
 ├─────────────────────────────────────────────────────────┤
 │ ◈Status ⊕Stream ◎Trigger ▷Execute ⊞DAG ◫Storage ◉Observe │  tabs
 ├─────────────────────────────────────────────────────────┤
@@ -140,8 +140,8 @@ Every command supports `--json`: the human-readable rendering below is always a 
 ### 4.2 Command reference
 
 ```
-watchflow run [PATH]                start the engine
-  --config FILE                     path to watchflow.toml
+swatch run [PATH]                start the engine
+  --config FILE                     path to swatch.toml
   --profile NAME                    named profile (dev | ci | prod)
   --json                            structured JSON output, one event per line
   --tui / --no-tui                  attach the TUI (default: headless)
@@ -150,41 +150,41 @@ watchflow run [PATH]                start the engine
   --verbose / -v                    full engine records + stream all subprocess output
   --quiet / -q                      only the final tally (plus any failure's output)
 
-watchflow init                       scaffold a watchflow.toml
-watchflow check                      validate config without running
-watchflow doctor                     environment + health diagnostics
-watchflow list triggers              show registered Triggers
-watchflow list adapters              show available/active Source Adapters
-watchflow list plugins               show loaded plugins and granted capabilities
-watchflow history                    query the EventStore
+swatch init                       scaffold a swatch.toml
+swatch check                      validate config without running
+swatch doctor                     environment + health diagnostics
+swatch list triggers              show registered Triggers
+swatch list adapters              show available/active Source Adapters
+swatch list plugins               show loaded plugins and granted capabilities
+swatch history                    query the EventStore
   --since DURATION                   e.g. 1h, 24h, 7d
   --trigger NAME                     filter by Trigger
   --mcp-only                         show only MCP-originated Runs
   --limit N
-watchflow dag show WORKFLOW          render a Workflow's DAG
-watchflow plugin install NAME
-watchflow plugin list
-watchflow plugin remove NAME
-watchflow mcp serve                  start the MCP server gateway
-watchflow mcp tools list             list exposed tools and their permission requirements
-watchflow mcp client test SERVER     verify connectivity to a configured external MCP server
-watchflow daemon                     run as a long-lived, systemd/launchd-managed daemon
-watchflow tui                        attach the TUI to an already-running engine
-watchflow version
-watchflow update
+swatch dag show WORKFLOW          render a Workflow's DAG
+swatch plugin install NAME
+swatch plugin list
+swatch plugin remove NAME
+swatch mcp serve                  start the MCP server gateway
+swatch mcp tools list             list exposed tools and their permission requirements
+swatch mcp client test SERVER     verify connectivity to a configured external MCP server
+swatch daemon                     run as a long-lived, systemd/launchd-managed daemon
+swatch tui                        attach the TUI to an already-running engine
+swatch version
+swatch update
 ```
 
 ### 4.3 Annotated example outputs
 
-**`watchflow run .`**
+**`swatch run .`**
 ```
-$ watchflow run .
+$ swatch run .
 
-  watchflow v1.0.0 · engine starting
+  swatch v1.0.0 · engine starting
 
-  ✓ config loaded        watchflow.toml · 4 triggers, 2 workflows
+  ✓ config loaded        swatch.toml · 4 triggers, 2 workflows
   ✓ adapters ready       filesystem, cron, manual, mcp-trigger
-  ✓ event store          .watchflow/events.db · wal · 7d retention
+  ✓ event store          .swatch/events.db · wal · 7d retention
   ✓ mcp gateway          serving · stdio · 3 tools exposed
 
   watching .  ·  4 triggers armed  ·  ^C to stop, --tui to attach
@@ -214,11 +214,11 @@ Pre-run failures under `--json` (a config or startup error, before any run exist
 
 **Direction — docker-compose-style passthrough (not a v0.1.x deliverable).** The passthrough modes (`--verbose` today; parallel-step and daemon output later) will adopt compose-style attribution: each source (trigger/step) gets a **stable color**, a **prefix**, and **column-aligned** names, so interleaved concurrent output stays readable (you can tell at a glance which line came from which step). This is deliberately reserved for the "show me everything, and several things run at once" end of the dial — it earns its complexity only once there is genuine concurrency (the `DAGExecutor`, v2.0; the daemon, v1.1). It does **not** change the default view, which stays quiet-on-success.
 
-**`watchflow check`**
+**`swatch check`**
 ```
-$ watchflow check
+$ swatch check
 
-  validating watchflow.toml …
+  validating swatch.toml …
 
   ✓ schema valid          4 triggers · 2 workflows · 0 warnings
   ✓ triggers              run-tests, run-tsc, on-push-review, deploy-on-request
@@ -228,9 +228,9 @@ $ watchflow check
   config is valid.
 ```
 
-**`watchflow doctor`**
+**`swatch doctor`**
 ```
-$ watchflow doctor
+$ swatch doctor
 
   ✓ python 3.12.4
   ✓ platform              linux · inotify available
@@ -242,9 +242,9 @@ $ watchflow doctor
   1 warning, 0 errors.
 ```
 
-**`watchflow dag show deploy-on-request`**
+**`swatch dag show deploy-on-request`**
 ```
-$ watchflow dag show deploy-on-request
+$ swatch dag show deploy-on-request
 
   Workflow: deploy-on-request  ·  3 steps  ·  critical path 7.2s
 
@@ -255,7 +255,7 @@ $ watchflow dag show deploy-on-request
   critical path:  trigger → pytest → report → notify   (7.2s)
 ```
 
-**`watchflow history --since 1h --limit 5`**
+**`swatch history --since 1h --limit 5`**
 ```
   RUN ID    TRIGGER           STATUS       DURATION   ORIGIN
   r_5121    run-tests         succeeded    1.8s       filesystem
@@ -265,7 +265,7 @@ $ watchflow dag show deploy-on-request
   r_5117    run-tests         succeeded    1.9s       filesystem
 ```
 
-**`watchflow mcp tools list`**
+**`swatch mcp tools list`**
 ```
   MCP Gateway · server mode · stdio
 
@@ -275,9 +275,9 @@ $ watchflow dag show deploy-on-request
   query_event_history   —                    Read from the EventStore
 ```
 
-**`--json` mode (one JSON object per line, never a buffered array — `watchflow run` is a stream, not a one-shot response):**
+**`--json` mode (one JSON object per line, never a buffered array — `swatch run` is a stream, not a one-shot response):**
 ```
-$ watchflow run . --once --json
+$ swatch run . --once --json
 {"event":"trigger.detected","trigger":"run-tests","confidence":0.94,"ts":"2026-07-10T14:32:07.412Z"}
 {"event":"run.started","run_id":"r_5117","trigger":"run-tests","ts":"2026-07-10T14:32:07.430Z"}
 {"event":"run.completed","run_id":"r_5117","status":"succeeded","duration_s":1.8}
@@ -285,16 +285,16 @@ $ watchflow run . --once --json
 
 **Error output:**
 ```
-$ watchflow run .
+$ swatch run .
 
   ✗ config error
 
-    watchflow.toml:14
+    swatch.toml:14
       13 │ [[trigger]]
       14 │ name = "run-tests
          │                  ^ unterminated string
 
-  fix the config, then re-run `watchflow check` to verify.
+  fix the config, then re-run `swatch check` to verify.
 ```
 
 ### 4.4 Exit codes
@@ -332,4 +332,4 @@ If a new surface needs something this document doesn't cover, that's a signal th
 
 ---
 
-*The living reference implementation of §3 is [`watchflow_terminal_mockup_7_views.html`](./watchflow_terminal_mockup_7_views.html). The CLI examples in §4 are illustrative target output, not captured from a running build — they are what a `rich`-based implementation should match, not a record of what already exists.*
+*The living reference implementation of §3 is [`scorpiowatch_terminal_mockup_7_views.html`](./scorpiowatch_terminal_mockup_7_views.html). The CLI examples in §4 are illustrative target output, not captured from a running build — they are what a `rich`-based implementation should match, not a record of what already exists.*

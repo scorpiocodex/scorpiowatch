@@ -1,6 +1,6 @@
 # Execution Model
 
-*Part of the WatchFlow documentation set — see [`WATCHFLOW.md`](./WATCHFLOW.md) for the full index. Governs the runtime behavior of the modules in [`MODULE_SPECIFICATIONS.md`](./MODULE_SPECIFICATIONS.md).*
+*Part of the ScorpioWatch documentation set — see [`SCORPIOWATCH.md`](./SCORPIOWATCH.md) for the full index. Governs the runtime behavior of the modules in [`MODULE_SPECIFICATIONS.md`](./MODULE_SPECIFICATIONS.md).*
 
 ---
 
@@ -61,9 +61,9 @@ A `subprocess` Step's stdout and stderr are handled two ways at once — a **liv
 ## 3. DAG execution semantics
 
 - **Topological sort** determines execution order; independent branches run concurrently under `asyncio.TaskGroup`, bounded by the Workflow's `max_parallel`.
-- **Critical path identification** surfaces which chain of `Step`s determines total `Run` duration — exposed via `watchflow dag show` and the TUI's DAG view.
+- **Critical path identification** surfaces which chain of `Step`s determines total `Run` duration — exposed via `swatch dag show` and the TUI's DAG view.
 - **Failure propagation:** a failed node marks all of its downstream dependents `SKIPPED` unless the dependent (or the failed node itself) is marked `continue_on_fail: true`.
-- **Cycle detection** runs at config-validation time (`watchflow check`), not at Run time — a cyclic Workflow never reaches the Scheduler.
+- **Cycle detection** runs at config-validation time (`swatch check`), not at Run time — a cyclic Workflow never reaches the Scheduler.
 - **Result caching** (from the DAG-optimization release band): deterministic nodes with unchanged inputs may skip re-execution; opt-in per node.
 
 ---
@@ -78,7 +78,7 @@ A `subprocess` Step's stdout and stderr are handled two ways at once — a **liv
 
 ## 5. Retries and idempotency
 
-- Retries are opt-in per `Step` (`retries: N`, `backoff: exponential | fixed`) and only offered for `Step` kinds that declare themselves idempotent-safe by default (`http` with `GET`, `mcp_tool` calls marked side-effect-free) — a `subprocess` step must explicitly declare `idempotent: true` before retries are permitted, since WatchFlow cannot infer that safely on its own.
+- Retries are opt-in per `Step` (`retries: N`, `backoff: exponential | fixed`) and only offered for `Step` kinds that declare themselves idempotent-safe by default (`http` with `GET`, `mcp_tool` calls marked side-effect-free) — a `subprocess` step must explicitly declare `idempotent: true` before retries are permitted, since ScorpioWatch cannot infer that safely on its own.
 - The Scheduler's dedupe key (see [`MODULE_SPECIFICATIONS.md`](./MODULE_SPECIFICATIONS.md) §4) prevents duplicate admission of the same logical `Run` triggered by a debounced burst of the same underlying event.
 
 ---
@@ -120,12 +120,12 @@ The CLI exit code is the machine-readable summary of a run, so it composes with 
 |---|---|---|
 | `0` | Success | All `Run`s in the batch reached `SUCCEEDED` (or `SKIPPED`); a daemon shut down cleanly within its grace window |
 | `1` | Workflow failure | At least one `Run` reached `FAILED` or `TIMED_OUT` — the aggregate signal the CI/CD context (§7) exits on so `--once` / `--profile ci` composes with an existing runner |
-| `2` | Config error | `watchflow.toml` failed schema validation, or a `Workflow` failed cycle detection at `watchflow check` time (§3) and never reached the `Scheduler` |
+| `2` | Config error | `swatch.toml` failed schema validation, or a `Workflow` failed cycle detection at `swatch check` time (§3) and never reached the `Scheduler` |
 | `3` | Usage error | Malformed CLI invocation — unknown command, missing required argument, bad flag (surfaced by the `typer` layer before the `Engine` starts) |
 | `4` | Startup / runtime error | The `Engine` failed to start or continue for an operational reason unrelated to workflow logic — e.g. a health/IPC socket bind failure, or a Source Adapter that could not initialize |
 | `130` | Interrupted | Terminated by `SIGINT` before completion (128 + 2), matching shell convention; the `SIGTERM` analogue is `143` (128 + 15) |
 
-Codes `1` and `2` are the two a CI pipeline distinguishes most often: a `1` means "your workflow ran and something it did failed," a `2` means "WatchFlow could not even accept your configuration." They are kept separate for exactly that reason.
+Codes `1` and `2` are the two a CI pipeline distinguishes most often: a `1` means "your workflow ran and something it did failed," a `2` means "ScorpioWatch could not even accept your configuration." They are kept separate for exactly that reason.
 
 ---
 

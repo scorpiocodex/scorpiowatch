@@ -1,6 +1,6 @@
 # Roadmap
 
-*Part of the WatchFlow documentation set — see [`WATCHFLOW.md`](./WATCHFLOW.md) for the full index.*
+*Part of the ScorpioWatch documentation set — see [`SCORPIOWATCH.md`](./SCORPIOWATCH.md) for the full index.*
 
 Five stable majors, same discipline as the original filesystem-only plan, now carrying the broader scope of [`PROJECT_CONSTITUTION.md`](./PROJECT_CONSTITUTION.md). LTS is **18 months** for v1–v4, **36 months** for v5. Each band's final minor overlaps with the next major's release-candidate cycle.
 
@@ -28,7 +28,7 @@ The ~10 h/week capacity is a **maintainer-owned assumption, not a measurement** 
 - `TriggerEngine` with glob patterns, no scoring yet
 - `Executor`: a linear (single-branch) Workflow of `subprocess` Steps, `shell=False`, per-step opt-in `timeout_s` (default none), process-group teardown, and streamed-and-bounded output capture ([`EXECUTION_MODEL.md`](./EXECUTION_MODEL.md) §2/§6)
 - `Scheduler` **seam**: admits every fired Trigger's Workflow to the `Executor` and owns the `Run` lifecycle. **Cooldown was pulled forward here** from v0.3.0 — a leading-edge per-`(trigger, matched_path)` throttle, on by default, observable via `admission.suppressed` ([`MODULE_SPECIFICATIONS.md`](./MODULE_SPECIFICATIONS.md) §4). The rest of the full `Scheduler` (dedupe, rate limiting) remains v0.3.0.
-- `watchflow run` and a **language-neutral** `watchflow init` (a portable demo trigger plus commented Python / JS-TS / Rust / Go / full-stack examples)
+- `swatch run` and a **language-neutral** `swatch init` (a portable demo trigger plus commented Python / JS-TS / Rust / Go / full-stack examples)
 
 **v0.1.1** — bugfix: adapter not closing cleanly on SIGINT
 **v0.1.2** — bugfix: subprocess zombies on cancellation
@@ -49,7 +49,7 @@ The ~10 h/week capacity is a **maintainer-owned assumption, not a measurement** 
 - **Debounce** — trailing-edge coalescing that waits out a spaced burst and runs once on the *settled* state. This is distinct from v0.1.0's leading-edge cooldown (run first, suppress the rest): debounce trades immediacy for running on the final state, and is the better fit for slow settle-then-run workflows.
 - Windows `FilesystemAdapter` support (`ReadDirectoryChangesW`)
 - `MCPTriggerAdapter` + minimal MCP server mode (`trigger_workflow` only)
-- `watchflow check` and `watchflow doctor`
+- `swatch check` and `swatch doctor`
 
 **v0.3.1** — bugfix: dedupe key collisions for similar paths
 **v0.3.2** — release candidate for v1.0.0: doc freeze, API freeze, soak testing (target: 12 effort-weeks ≈ month 12)
@@ -70,9 +70,9 @@ The ~10 h/week capacity is a **maintainer-owned assumption, not a measurement** 
 **v1.0.2** — bugfix: `EventStore` migration on first run
 
 **v1.1.0 — Daemon, operability + container packaging (target: 21 effort-weeks ≈ month 21)**
-- **Per-trigger environment / toolchain resolution (front of this band).** Today every Step inherits the one environment WatchFlow runs under; a Step whose command is itself a toolchain launcher (e.g. `uv run`, `npm`) resolves against **WatchFlow's** environment, not the watched project's — WatchFlow's own `VIRTUAL_ENV` / `UV_*` vars can leak into and mislead the child. v1.1 gives each Trigger its own resolved environment/toolchain so a child runs in the project's context. The **full-stack / polyglot** use case ([`WATCHFLOW.md`](./WATCHFLOW.md) §3) raises its priority: a Node front end and a Python back end in one repo need per-trigger toolchains, not one inherited environment.
+- **Per-trigger environment / toolchain resolution (front of this band).** Today every Step inherits the one environment ScorpioWatch runs under; a Step whose command is itself a toolchain launcher (e.g. `uv run`, `npm`) resolves against **ScorpioWatch's** environment, not the watched project's — ScorpioWatch's own `VIRTUAL_ENV` / `UV_*` vars can leak into and mislead the child. v1.1 gives each Trigger its own resolved environment/toolchain so a child runs in the project's context. The **full-stack / polyglot** use case ([`SCORPIOWATCH.md`](./SCORPIOWATCH.md) §3) raises its priority: a Node front end and a Python back end in one repo need per-trigger toolchains, not one inherited environment.
 - **Cooldown-map eviction under a long-lived daemon:** v0.1.0 uses lazy purge-on-access (a key touched once lingers until the next over-threshold admission). Revisit a periodic sweep now that the daemon runs for weeks (see [`MODULE_SPECIFICATIONS.md`](./MODULE_SPECIFICATIONS.md) §4).
-- `watchflow daemon` (systemd/launchd-managed), Unix socket / named pipe IPC, crash-only recovery reconciled against the `EventStore`
+- `swatch daemon` (systemd/launchd-managed), Unix socket / named pipe IPC, crash-only recovery reconciled against the `EventStore`
 - Per-component health endpoints (liveness/readiness), bind address configurable
 - Graceful shutdown on `SIGTERM`/`SIGINT` with a bounded drain window (see [`EXECUTION_MODEL.md`](./EXECUTION_MODEL.md) §7)
 - Process exit-code semantics for CI composition (see [`EXECUTION_MODEL.md`](./EXECUTION_MODEL.md) §7)
@@ -87,7 +87,7 @@ The ~10 h/week capacity is a **maintainer-owned assumption, not a measurement** 
 **v1.2.0 — Plugin host + webhook source adapter (target: 24 effort-weeks ≈ month 24)**
 - `PluginHost` with entry-point discovery and capability grants
 - Plugin sandboxing (no `subprocess`/`network` access without explicit grant)
-- `watchflow-webhook` ships as the first official source-adapter plugin — the plugin host is pulled forward to here so the webhook adapter arrives **as a plugin, never promoted into core** (ADR-0006, ADR-0011)
+- `scorpiowatch-webhook` ships as the first official source-adapter plugin — the plugin host is pulled forward to here so the webhook adapter arrives **as a plugin, never promoted into core** (ADR-0006, ADR-0011)
 
 *(Scope unchanged from before the container move; its target shifts from 22 to 24 effort-weeks only because the container-packaging work now lands ahead of it in v1.1.0.)*
 
@@ -111,7 +111,7 @@ The ~10 h/week capacity is a **maintainer-owned assumption, not a measurement** 
 - `DAGExecutor`: topological sort, parallel fan-out, critical-path identification
 - `continue_on_fail` per-node flag
 - TOML config supports `[[trigger.workflow.step]]` DAG graphs
-- **Windows Service wrapper** for `watchflow daemon` — brings Windows to daemon parity; Linux (`systemd`) and macOS (`launchd`) daemon support shipped first in v1.1.0 (see [`ARCHITECTURE.md`](./ARCHITECTURE.md) §4)
+- **Windows Service wrapper** for `swatch daemon` — brings Windows to daemon parity; Linux (`systemd`) and macOS (`launchd`) daemon support shipped first in v1.1.0 (see [`ARCHITECTURE.md`](./ARCHITECTURE.md) §4)
 
 **v2.0.1** — bugfix: cycle detection missing self-loops
 **v2.0.2** — bugfix: parallel node cancellation leaving orphan subprocesses
@@ -124,16 +124,16 @@ The ~10 h/week capacity is a **maintainer-owned assumption, not a measurement** 
 *(Displaced from the old v1.1.0 when the v1 band was re-sequenced for the co-equal DevOps audience — ADR-0011.)*
 
 **v2.2.0 — Source-adapter + notification plugins (target: 36 effort-weeks ≈ month 36)**
-- `watchflow-queue`, `watchflow-git`, `watchflow-ci` ship as official first-party source-adapter plugins (`watchflow-webhook` already shipped in v1.2.0)
-- Notification plugins: `watchflow-slack`, `watchflow-github`, `watchflow-notify`
+- `scorpiowatch-queue`, `scorpiowatch-git`, `scorpiowatch-ci` ship as official first-party source-adapter plugins (`scorpiowatch-webhook` already shipped in v1.2.0)
+- Notification plugins: `scorpiowatch-slack`, `scorpiowatch-github`, `scorpiowatch-notify`
 - Webhook/queue payload validation hardened per [`SECURITY_MODEL.md`](./SECURITY_MODEL.md)
 
 **v2.3.0 — Speculative execution, multi-profile + DAG optimizations (target: 39 effort-weeks ≈ month 39)**
 - Per-trigger `speculative: true` flag
-- Named profiles (`dev`, `ci`, `prod`); `watchflow run --profile ci`
-- `watchflow-discord` plugin
+- Named profiles (`dev`, `ci`, `prod`); `swatch run --profile ci`
+- `scorpiowatch-discord` plugin
 - Result caching for deterministic nodes
-- `watchflow dag show` visualizer command
+- `swatch dag show` visualizer command
 
 **v2.3.1** — bugfix: profile env merge order
 
@@ -152,13 +152,13 @@ The ~10 h/week capacity is a **maintainer-owned assumption, not a measurement** 
 **v3.0.1** — bugfix: trace ID propagation missing on plugin-emitted events
 
 **v3.1.0 — OpenTelemetry (target: post-v2 — sequenced, not scheduled)**
-- `watchflow-otel` promoted to first-class; OTLP exporter compatible with Jaeger, Tempo, Honeycomb, Datadog
+- `scorpiowatch-otel` promoted to first-class; OTLP exporter compatible with Jaeger, Tempo, Honeycomb, Datadog
 
 **v3.1.1** — bugfix: OTLP retry storm under broker downtime
 
 **v3.2.0 — Alerting + MCP Gateway hardening (target: post-v2 — sequenced, not scheduled)**
 - Alert rules (`[alerts]`): failure rate, p95 latency, queue saturation
-- `watchflow-pagerduty` plugin
+- `scorpiowatch-pagerduty` plugin
 - MCP Gateway: per-caller rate limiting, `requires_confirmation` flow shipped stable
 
 ---
@@ -173,10 +173,10 @@ The ~10 h/week capacity is a **maintainer-owned assumption, not a measurement** 
 **v4.0.1** — bugfix: plugin permission denial messages misleading
 
 **v4.1.0 — Plugin distribution (target: post-v2 — sequenced, not scheduled)**
-- `watchflow plugin install` from PyPI or git; plugin marketplace metadata format
+- `swatch plugin install` from PyPI or git; plugin marketplace metadata format
 
 **v4.2.0 — LSP integration (target: post-v2 — sequenced, not scheduled)**
-- Language Server Protocol surface for `watchflow.toml`: validation, autocomplete, go-to-definition for triggers
+- Language Server Protocol surface for `swatch.toml`: validation, autocomplete, go-to-definition for triggers
 - VS Code extension as official client
 
 ---
@@ -186,7 +186,7 @@ The ~10 h/week capacity is a **maintainer-owned assumption, not a measurement** 
 > TUI stable, enterprise, cloud sync, AI-assisted trigger inference. **LTS for 36 months — long-term anchor release.**
 
 **v5.0.0 — TUI stable (target: post-v2 — sequenced, not scheduled)**
-- `watchflow tui` ships stable, supported, first-class; all 7 panels (Status, Stream, Trigger, Execute, DAG, Storage, Observe)
+- `swatch tui` ships stable, supported, first-class; all 7 panels (Status, Stream, Trigger, Execute, DAG, Storage, Observe)
 - Attach to a running daemon over the v1.1 IPC
 
 **v5.0.1** — bugfix: TUI redraw flicker on tab switch
@@ -199,7 +199,7 @@ The ~10 h/week capacity is a **maintainer-owned assumption, not a measurement** 
 **v5.1.1** — bugfix: cloud sync conflict resolution for clock-skewed nodes
 
 **v5.2.0 — AI-assisted trigger inference (target: post-v2 — sequenced, not scheduled)**
-- `watchflow-ai` plugin first-class: suggests new Triggers from observed event/Run history over MCP
+- `scorpiowatch-ai` plugin first-class: suggests new Triggers from observed event/Run history over MCP
 - Fully local model option via `llama.cpp`; cloud option via configurable provider
 
 ---

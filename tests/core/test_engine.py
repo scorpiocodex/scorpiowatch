@@ -17,14 +17,14 @@ from uuid import uuid4
 
 import pytest
 
-import watchflow.core.engine as engine_mod
-from watchflow.adapters.filesystem import FilesystemAdapter
-from watchflow.core.config import WatchflowConfig
-from watchflow.core.engine import Engine, EngineStartupError
-from watchflow.core.events import Event, EventBus
-from watchflow.core.triggers import GlobMatch, Trigger
-from watchflow.core.workflow import Step, Workflow
-from watchflow.execution.executor import RunState
+import swatch.core.engine as engine_mod
+from swatch.adapters.filesystem import FilesystemAdapter
+from swatch.core.config import SwatchConfig
+from swatch.core.engine import Engine, EngineStartupError
+from swatch.core.events import Event, EventBus
+from swatch.core.triggers import GlobMatch, Trigger
+from swatch.core.workflow import Step, Workflow
+from swatch.execution.executor import RunState
 
 _HEARTBEAT_SRC = (
     "import sys, time\n"
@@ -59,13 +59,13 @@ def make_event(path: str = "src/api.py", *, source: str = "filesystem") -> Event
     )
 
 
-def make_config(*, pattern: str = "**/*.py", steps: list[Step]) -> WatchflowConfig:
+def make_config(*, pattern: str = "**/*.py", steps: list[Step]) -> SwatchConfig:
     """Build a one-trigger config binding ``pattern`` to a Workflow of ``steps``."""
     workflow = Workflow(name="wf", steps=steps)
     trigger = Trigger(
         name="t", source="filesystem", match=GlobMatch(pattern=pattern), workflow=workflow
     )
-    return WatchflowConfig(triggers=[trigger])
+    return SwatchConfig(triggers=[trigger])
 
 
 class _ScriptedSource:

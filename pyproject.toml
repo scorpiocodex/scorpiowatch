@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "watchflow"
+name = "scorpiowatch"
 version = "0.1.0"
 description = "Cross-platform, event-driven workflow orchestration for local dev, CI/CD, DevOps automation, and MCP-powered AI systems"
 readme = "README.md"
@@ -40,22 +40,22 @@ classifiers = [
 
 # Core runtime dependencies: only what the v0.1.0 ROADMAP scope actually needs
 # (FilesystemAdapter + ManualAdapter + glob TriggerEngine + single-subprocess
-# Executor + `watchflow run` / `watchflow init`). Everything else in the
+# Executor + `swatch run` / `swatch init`). Everything else in the
 # CODING_STANDARD.md §1 stack is deferred to an optional extra or a later version.
 dependencies = [
-    "typer>=0.12.0",      # CLI framework — `watchflow run` / `watchflow init`
+    "typer>=0.12.0",      # CLI framework — `swatch run` / `swatch init`
     "rich>=13.7.0",       # readable CLI output (paired with typer per stack §1)
     "watchfiles>=0.21.0", # FilesystemAdapter — async-native, Rust-backed
     "structlog>=24.1.0",  # structured logging (Constitution Article VIII)
-    "pydantic>=2.6.0",    # watchflow.toml schema validation (config layer)
+    "pydantic>=2.6.0",    # swatch.toml schema validation (config layer)
 ]
 
 [project.scripts]
-# The console entry point: `watchflow ...` runs the typer CLI (run / init in v0.1.0).
-watchflow = "watchflow.cli.main:main"
+# The console entry point: `swatch ...` runs the typer CLI (run / init in v0.1.0).
+swatch = "swatch.cli.main:main"
 
 [project.optional-dependencies]
-# The eight extras enumerated in WATCHFLOW.md §1. Only the extras whose concrete
+# The eight extras enumerated in SCORPIOWATCH.md §1. Only the extras whose concrete
 # package is pinned in CODING_STANDARD.md §1 carry a dependency today; the rest are
 # declared as placeholders and populated when their feature/plugin lands (see ROADMAP).
 tui = ["textual>=0.60.0"]      # optional TUI (stack §1) — ships stable in v5.0.0
@@ -65,13 +65,13 @@ queue = []                     # queue source-adapter plugin — v2.1.0
 git = []                       # git source-adapter plugin — v2.1.0
 ci = []                        # ci-provider source-adapter plugin — v2.1.0
 mcp = ["mcp>=1.0.0"]           # official MCP SDK (stack §1) — server mode in v0.3.0
-all = ["watchflow[tui,otel,webhooks,queue,git,ci,mcp]"]
+all = ["scorpiowatch[tui,otel,webhooks,queue,git,ci,mcp]"]
 
 [project.urls]
-Homepage = "https://github.com/scorpiocodex/watchflow"
-Repository = "https://github.com/scorpiocodex/watchflow"
-Documentation = "https://github.com/scorpiocodex/watchflow/blob/main/docs/WATCHFLOW.md"
-"Bug Tracker" = "https://github.com/scorpiocodex/watchflow/issues"
+Homepage = "https://github.com/scorpiocodex/scorpiowatch"
+Repository = "https://github.com/scorpiocodex/scorpiowatch"
+Documentation = "https://github.com/scorpiocodex/scorpiowatch/blob/main/docs/SCORPIOWATCH.md"
+"Bug Tracker" = "https://github.com/scorpiocodex/scorpiowatch/issues"
 
 [dependency-groups]
 # Development toolchain from CODING_STANDARD.md §1 (testing + typing + lint/format).
@@ -90,7 +90,7 @@ dev = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/watchflow"]
+packages = ["src/swatch"]
 
 [tool.ruff]
 # CODING_STANDARD.md §2 fixes line length at 100 columns.
@@ -127,7 +127,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.flake8-tidy-imports]
-# §2: absolute imports only within src/watchflow.
+# §2: absolute imports only within src/swatch.
 ban-relative-imports = "all"
 
 [tool.ruff.lint.flake8-tidy-imports.banned-api]
@@ -136,14 +136,14 @@ ban-relative-imports = "all"
 "asyncio.create_subprocess_shell".msg = "Use asyncio.create_subprocess_exec (shell=False) — CODING_STANDARD.md §6 / Constitution Article III."
 
 [tool.ruff.lint.isort]
-known-first-party = ["watchflow"]
+known-first-party = ["swatch"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
 
 [tool.ruff.lint.per-file-ignores]
 # §6 permits print() in the CLI layer only — scope the print ban out of cli/.
-"src/watchflow/cli/**" = ["T20"]
+"src/swatch/cli/**" = ["T20"]
 # Tests may use bare asserts (S101) and need no public-API docstrings.
 "tests/**" = ["S101", "D100", "D101", "D102", "D103", "D105"]
 
@@ -173,7 +173,7 @@ markers = [
 addopts = [
     "--strict-markers",
     "--strict-config",
-    "--cov=watchflow",
+    "--cov=swatch",
     "--cov-report=term-missing",
     "--cov-report=xml",
     "--cov-branch",              # §4: branch coverage, not just line
@@ -181,7 +181,7 @@ addopts = [
 ]
 
 [tool.coverage.run]
-source = ["watchflow"]
+source = ["swatch"]
 branch = true
 
 [tool.coverage.report]
@@ -232,12 +232,12 @@ allowed_prefixes = [
 # observability, which "may depend on each other" per PROJECT_STRUCTURE.md §2) use ":".
 # `exhaustive` guarantees every top-level package is placed in a layer — no future
 # package can silently escape the architecture.
-root_package = "watchflow"
+root_package = "swatch"
 
 [[tool.importlinter.contracts]]
-name = "WatchFlow layered architecture (ARCHITECTURE sec.2; ADR-0010 Option A; ADR-0012)"
+name = "ScorpioWatch layered architecture (ARCHITECTURE sec.2; ADR-0010 Option A; ADR-0012)"
 type = "layers"
-containers = ["watchflow"]
+containers = ["swatch"]
 layers = [
     "cli : tui",
     "plugins",

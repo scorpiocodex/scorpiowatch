@@ -20,10 +20,10 @@ from uuid import uuid4
 import structlog
 from watchfiles import Change, awatch
 
-from watchflow.core.events import Event
+from swatch.core.events import Event
 
 if TYPE_CHECKING:
-    from watchflow.core.ports import SourceAdapter
+    from swatch.core.ports import SourceAdapter
 
 _log = structlog.get_logger(__name__)
 

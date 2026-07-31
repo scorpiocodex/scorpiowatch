@@ -1,19 +1,19 @@
-# watchflow.toml - a runnable, language-neutral local-dev example.
+# swatch.toml - a runnable, language-neutral local-dev example.
 #
-# WatchFlow watches files and runs commands on change. It is language-agnostic: a trigger
+# ScorpioWatch watches files and runs commands on change. It is language-agnostic: a trigger
 # matches paths by glob and runs any `command` (an argv list) - it knows nothing about
 # languages. The active trigger below runs on ANY file change using a trivial portable command
-# (the Python that ships with WatchFlow, used here purely as a cross-platform "echo"), so it
+# (the Python that ships with ScorpioWatch, used here purely as a cross-platform "echo"), so it
 # works on any project without a toolchain. Try it:
 #
 #   cd examples/local-dev
-#   uv run watchflow run . --config watchflow.toml
+#   uv run swatch run . --config swatch.toml
 #   # then, in another terminal, touch a file to see a workflow run:
 #   #   echo hi > note.txt
 #   # or run a single batch and exit (CI mode, exits 0 on success / 1 on failure):
-#   uv run watchflow run . --config watchflow.toml --once
+#   uv run swatch run . --config swatch.toml --once
 #
-# For a two-language (frontend + backend) config, see ../fullstack/watchflow.toml.
+# For a two-language (frontend + backend) config, see ../fullstack/swatch.toml.
 
 [[trigger]]
 name = "on-change"
@@ -27,5 +27,5 @@ patterns = ["**/*"]
   # `command` is an argv list run as a subprocess (shell=False) - never a shell string. Replace
   # it with your project's real command, in any language.
   steps = [
-    { name = "announce", command = ["python", "-c", "print('watchflow: a file changed')"] },
+    { name = "announce", command = ["python", "-c", "print('swatch: a file changed')"] },
   ]

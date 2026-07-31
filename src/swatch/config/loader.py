@@ -1,9 +1,9 @@
-"""The ``watchflow.toml`` loader.
+"""The ``swatch.toml`` loader.
 
 Under ADR-0012 ``config/`` is a pure loader: it reads and validates configuration and
-returns the core-owned :class:`~watchflow.core.config.WatchflowConfig`. It defines no
+returns the core-owned :class:`~swatch.core.config.SwatchConfig`. It defines no
 domain models of its own — instead it *maps* the ergonomic TOML documented in
-``WATCHFLOW.md`` §8 onto the core models (``Trigger`` / ``Workflow`` / ``Step``), which
+``SCORPIOWATCH.md`` §8 onto the core models (``Trigger`` / ``Workflow`` / ``Step``), which
 remain the single validation target. The dependency direction is one-way, ``config ->
 core`` (``MODULE_SPECIFICATIONS.md`` §10).
 
@@ -25,7 +25,7 @@ Mapping rules (v0.1.0):
 Strictness: keys *inside* a ``[[trigger]]`` block (and its workflow/steps) are validated
 strictly — an unknown key such as a ``patttern`` typo is a hard error, never silently
 dropped. Unknown *top-level* sections (e.g. a future ``[mcp]``) are ignored so a
-forward-looking ``watchflow.toml`` still loads. Any failure raises :class:`ConfigError`
+forward-looking ``swatch.toml`` still loads. Any failure raises :class:`ConfigError`
 with a precise, human-readable message and never a partially-applied config
 (``MODULE_SPECIFICATIONS.md`` §10 invariant); the CLI maps that to exit code 2
 (``EXECUTION_MODEL.md`` §7.2).
@@ -37,9 +37,9 @@ from typing import Any
 
 from pydantic import ValidationError
 
-from watchflow.core.config import WatchflowConfig
-from watchflow.core.triggers import GlobMatch, Trigger
-from watchflow.core.workflow import Step, Workflow
+from swatch.core.config import SwatchConfig
+from swatch.core.triggers import GlobMatch, Trigger
+from swatch.core.workflow import Step, Workflow
 
 _DEFAULT_SOURCE = "filesystem"
 _SUBPROCESS_KIND = "subprocess"
@@ -52,7 +52,7 @@ _STEP_KEYS = frozenset({"name", "kind", "command", "timeout_s", "cwd", "env_allo
 
 
 class ConfigError(Exception):
-    """A ``watchflow.toml`` could not be read, parsed, or validated.
+    """A ``swatch.toml`` could not be read, parsed, or validated.
 
     Raised for every configuration failure — a missing file, malformed TOML, an unknown
     key, an unsupported step kind, or a field that fails the core model's validation — so
@@ -68,14 +68,14 @@ class ConfigError(Exception):
 
         Args:
             message: A precise, human-readable description of what is wrong.
-            path: The ``watchflow.toml`` the error concerns, if known.
+            path: The ``swatch.toml`` the error concerns, if known.
         """
         self.path = path
         super().__init__(message)
 
 
-def load(path: Path) -> WatchflowConfig:
-    """Parse and validate a ``watchflow.toml`` into a :class:`WatchflowConfig`.
+def load(path: Path) -> SwatchConfig:
+    """Parse and validate a ``swatch.toml`` into a :class:`SwatchConfig`.
 
     Reads ``path`` as TOML, maps every ``[[trigger]]`` onto the core ``Trigger`` /
     ``Workflow`` / ``Step`` models (see the module docstring for the mapping), and returns
@@ -83,7 +83,7 @@ def load(path: Path) -> WatchflowConfig:
     are errors.
 
     Args:
-        path: Filesystem path to the ``watchflow.toml`` to load.
+        path: Filesystem path to the ``swatch.toml`` to load.
 
     Returns:
         The validated top-level configuration.
@@ -97,7 +97,7 @@ def load(path: Path) -> WatchflowConfig:
     triggers: list[Trigger] = []
     for index, table in enumerate(_trigger_tables(raw, path)):
         triggers.extend(_build_triggers(table, index, path))
-    return WatchflowConfig(triggers=triggers)
+    return SwatchConfig(triggers=triggers)
 
 
 def _read_toml(path: Path) -> dict[str, Any]:

@@ -13,8 +13,8 @@ from pathlib import Path
 import pytest
 from watchfiles import Change
 
-from watchflow.adapters.filesystem import FilesystemAdapter
-from watchflow.core.events import BackpressureStrategy, Event, EventBus
+from swatch.adapters.filesystem import FilesystemAdapter
+from swatch.core.events import BackpressureStrategy, Event, EventBus
 
 SETTLE_S = 0.4  # proven adequate on Linux inotify and Windows for the debounce below
 

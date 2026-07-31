@@ -2,7 +2,7 @@
 
 See ``MODULE_SPECIFICATIONS.md`` §4. The Scheduler is the ``on_fired`` sink the
 ``TriggerEngine`` emits to (task 1.2): each ``TriggerFired`` it receives becomes a ``Run``
-of the fired Trigger's Workflow, executed by the :class:`~watchflow.execution.executor.Executor`
+of the fired Trigger's Workflow, executed by the :class:`~swatch.execution.executor.Executor`
 (commit 1). It decouples matching from execution — admitting a run never blocks the engine's
 match loop — and owns the ``Run`` lifecycle, including recording a cancelled run as
 ``CANCELLED`` (``EXECUTION_MODEL.md`` §7.1).
@@ -28,10 +28,10 @@ from uuid import UUID, uuid4
 
 import structlog
 
-from watchflow.core.reporting import RunReporter
-from watchflow.core.triggers import Trigger, TriggerFired
-from watchflow.core.workflow import Workflow
-from watchflow.execution.executor import (
+from swatch.core.reporting import RunReporter
+from swatch.core.triggers import Trigger, TriggerFired
+from swatch.core.workflow import Workflow
+from swatch.execution.executor import (
     Executor,
     OutputChunk,
     OutputSink,
@@ -123,7 +123,7 @@ class Scheduler:
             default_cooldown_ms: The §4 cooldown window applied to a trigger that does not set
                 its own ``cooldown_ms``. Leading-edge, on by default (see
                 :meth:`_admission_blocked`); pass ``0`` to disable cooldown globally.
-            reporter: Optional :class:`~watchflow.core.reporting.RunReporter` narrated as each
+            reporter: Optional :class:`~swatch.core.reporting.RunReporter` narrated as each
                 run starts, streams output, and finishes (the CLI's output layer). ``None``
                 runs silently.
 

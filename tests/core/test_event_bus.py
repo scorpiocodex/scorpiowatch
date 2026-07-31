@@ -8,7 +8,7 @@ import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from watchflow.core.events import BackpressureStrategy, Event, EventBus
+from swatch.core.events import BackpressureStrategy, Event, EventBus
 
 DROP_STRATEGIES = [BackpressureStrategy.DROP_OLDEST, BackpressureStrategy.REPORT_AND_DROP]
 

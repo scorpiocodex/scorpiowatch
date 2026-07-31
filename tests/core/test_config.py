@@ -1,13 +1,13 @@
-"""Structural checks for the ``WatchflowConfig`` model (skeleton, task 0.3)."""
+"""Structural checks for the ``SwatchConfig`` model (skeleton, task 0.3)."""
 
 from pydantic import BaseModel
 
-from watchflow.core.config import WatchflowConfig
+from swatch.core.config import SwatchConfig
 
 
-def test_watchflow_config_is_a_pydantic_model() -> None:
-    assert issubclass(WatchflowConfig, BaseModel)
+def test_swatch_config_is_a_pydantic_model() -> None:
+    assert issubclass(SwatchConfig, BaseModel)
 
 
-def test_watchflow_config_holds_triggers() -> None:
-    assert "triggers" in WatchflowConfig.model_fields
+def test_swatch_config_holds_triggers() -> None:
+    assert "triggers" in SwatchConfig.model_fields

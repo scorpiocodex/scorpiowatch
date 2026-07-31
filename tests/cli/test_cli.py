@@ -1,4 +1,4 @@
-"""Tests for the ``watchflow`` CLI: ``init``, ``run`` wiring, and §7.2 exit-code mapping.
+"""Tests for the ``swatch`` CLI: ``init``, ``run`` wiring, and §7.2 exit-code mapping.
 
 The ``run`` happy/failure/startup paths drive the *real* Engine/Scheduler/Executor (real
 subprocesses) through the actual command, substituting only the event *source* with a scripted
@@ -21,27 +21,27 @@ import pytest
 import typer
 from typer.testing import CliRunner
 
-import watchflow.cli.commands.run as run_cmd
-import watchflow.cli.main as main_mod
-from watchflow.cli.commands.run import _aggregate_exit, _exit_code, _resolve_mode, _ShutdownSignals
-from watchflow.cli.exit_codes import ExitCode
-from watchflow.cli.main import app
-from watchflow.cli.reporter import OutputMode
-from watchflow.core.config import WatchflowConfig
-from watchflow.core.events import Event
-from watchflow.core.scheduler import Run
-from watchflow.core.triggers import GlobMatch, Trigger
-from watchflow.core.workflow import Step, Workflow
-from watchflow.execution.executor import RunState
+import swatch.cli.commands.run as run_cmd
+import swatch.cli.main as main_mod
+from swatch.cli.commands.run import _aggregate_exit, _exit_code, _resolve_mode, _ShutdownSignals
+from swatch.cli.exit_codes import ExitCode
+from swatch.cli.main import app
+from swatch.cli.reporter import OutputMode
+from swatch.core.config import SwatchConfig
+from swatch.core.events import Event
+from swatch.core.scheduler import Run
+from swatch.core.triggers import GlobMatch, Trigger
+from swatch.core.workflow import Step, Workflow
+from swatch.execution.executor import RunState
 
 
-def _config() -> WatchflowConfig:
+def _config() -> SwatchConfig:
     """A one-trigger config for banner/summary rendering tests."""
     workflow = Workflow(name="wf", steps=[Step(name="s", command=["true"])])
     trigger = Trigger(
         name="t", source="filesystem", match=GlobMatch(pattern="**/*.py"), workflow=workflow
     )
-    return WatchflowConfig(triggers=[trigger])
+    return SwatchConfig(triggers=[trigger])
 
 
 runner = CliRunner()
@@ -67,7 +67,7 @@ def _toml_array(items: list[str]) -> str:
     return "[" + ", ".join(f"'{item}'" for item in items) + "]"
 
 
-def _write_config(tmp_path: Path, argv: list[str], *, name: str = "watchflow.toml") -> Path:
+def _write_config(tmp_path: Path, argv: list[str], *, name: str = "swatch.toml") -> Path:
     """Write a valid one-trigger config whose single step runs ``argv``."""
     body = (
         "[[trigger]]\n"
@@ -132,23 +132,23 @@ def test_help_lists_run_and_init() -> None:
 
 
 # --------------------------------------------------------------------------- #
-# watchflow init                                                               #
+# swatch init                                                               #
 # --------------------------------------------------------------------------- #
 
 
 def test_init_scaffolds_a_valid_config(tmp_path: Path) -> None:
     result = runner.invoke(app, ["init", str(tmp_path)])
     assert result.exit_code == 0
-    written = tmp_path / "watchflow.toml"
+    written = tmp_path / "swatch.toml"
     assert written.exists()
     assert "[[trigger]]" in written.read_text(encoding="utf-8")
 
 
 def test_init_scaffold_loads_back_as_valid_config(tmp_path: Path) -> None:
-    from watchflow.config.loader import load
+    from swatch.config.loader import load
 
     runner.invoke(app, ["init", str(tmp_path)])
-    config = load(tmp_path / "watchflow.toml")
+    config = load(tmp_path / "swatch.toml")
     # Only the one active, language-neutral trigger loads; the multi-stack examples below it
     # are commented documentation, not active triggers.
     assert len(config.triggers) == 1
@@ -157,7 +157,7 @@ def test_init_scaffold_loads_back_as_valid_config(tmp_path: Path) -> None:
 
 
 def test_init_refuses_to_overwrite_without_force(tmp_path: Path) -> None:
-    target = tmp_path / "watchflow.toml"
+    target = tmp_path / "swatch.toml"
     target.write_text("# mine\n", encoding="utf-8")
     result = runner.invoke(app, ["init", str(tmp_path)])
     assert result.exit_code == 1
@@ -166,7 +166,7 @@ def test_init_refuses_to_overwrite_without_force(tmp_path: Path) -> None:
 
 
 def test_init_force_overwrites(tmp_path: Path) -> None:
-    target = tmp_path / "watchflow.toml"
+    target = tmp_path / "swatch.toml"
     target.write_text("# mine\n", encoding="utf-8")
     result = runner.invoke(app, ["init", str(tmp_path), "--force"])
     assert result.exit_code == 0
@@ -174,7 +174,7 @@ def test_init_force_overwrites(tmp_path: Path) -> None:
 
 
 # --------------------------------------------------------------------------- #
-# watchflow run — config errors → exit 2.                                      #
+# swatch run — config errors → exit 2.                                      #
 # --------------------------------------------------------------------------- #
 
 
@@ -185,7 +185,7 @@ def test_run_missing_config_is_exit_2(tmp_path: Path) -> None:
 
 
 def test_run_malformed_config_is_exit_2(tmp_path: Path) -> None:
-    bad = tmp_path / "watchflow.toml"
+    bad = tmp_path / "swatch.toml"
     bad.write_text('[[trigger]]\nname = "t\n', encoding="utf-8")  # unterminated string
     result = runner.invoke(app, ["run", str(tmp_path)])
     assert result.exit_code == int(ExitCode.CONFIG_ERROR)
@@ -193,7 +193,7 @@ def test_run_malformed_config_is_exit_2(tmp_path: Path) -> None:
 
 
 # --------------------------------------------------------------------------- #
-# watchflow run --once — the full pipeline, deterministic via a scripted source.
+# swatch run --once — the full pipeline, deterministic via a scripted source.
 # --------------------------------------------------------------------------- #
 
 
@@ -276,7 +276,7 @@ def test_main_verbose_quiet_conflict_is_exit_3(
     monkeypatch.setattr(
         sys,
         "argv",
-        ["watchflow", "run", str(tmp_path), "--config", str(config), "--verbose", "--quiet"],
+        ["swatch", "run", str(tmp_path), "--config", str(config), "--verbose", "--quiet"],
     )
     with pytest.raises(SystemExit) as exc:
         main_mod.main()
@@ -317,7 +317,7 @@ def test_run_explicit_cwd_wins_over_the_default(
     other.mkdir()
     recorded = tmp_path / "cwd.txt"
     argv = [sys.executable, "-c", _RECORD_CWD, str(recorded)]
-    config = proj / "watchflow.toml"
+    config = proj / "swatch.toml"
     config.write_text(
         "[[trigger]]\n"
         'name = "t"\n'
@@ -359,7 +359,7 @@ def test_run_relative_cwd_resolves_under_the_watched_root(
     (proj / "sub").mkdir()
     recorded = tmp_path / "cwd.txt"
     argv = [sys.executable, "-c", _RECORD_CWD, str(recorded)]
-    config = proj / "watchflow.toml"
+    config = proj / "swatch.toml"
     config.write_text(
         "[[trigger]]\n"
         'name = "t"\n'
@@ -376,7 +376,7 @@ def test_run_relative_cwd_resolves_under_the_watched_root(
 
 def test_init_scaffold_is_language_neutral_and_documents_cwd(tmp_path: Path) -> None:
     runner.invoke(app, ["init", str(tmp_path)])
-    written = (tmp_path / "watchflow.toml").read_text(encoding="utf-8")
+    written = (tmp_path / "swatch.toml").read_text(encoding="utf-8")
     assert "language-agnostic" in written  # framing: the engine knows nothing about languages
     # Breadth shown as commented examples across stacks, plus per-trigger cwd in the full-stack one.
     for token in ("pytest", "npm", "cargo", "go-build", 'cwd = "frontend"'):
@@ -396,9 +396,9 @@ def test_init_scaffold_active_trigger_runs_on_a_change(
 
 
 def test_fullstack_example_config_loads_with_both_triggers() -> None:
-    from watchflow.config.loader import load
+    from swatch.config.loader import load
 
-    config = load(Path("examples/fullstack/watchflow.toml"))
+    config = load(Path("examples/fullstack/swatch.toml"))
     # frontend expands over its 2 patterns, backend over 1 → 3 core triggers, two languages.
     names = [t.name for t in config.triggers]
     assert names == ["frontend", "frontend", "backend"]
@@ -456,11 +456,11 @@ async def test_shutdown_signals_drive_two_stage_shutdown() -> None:
 
 
 # --------------------------------------------------------------------------- #
-# Real OS SIGINT reaching a live `watchflow run` process (§7.1).               #
+# Real OS SIGINT reaching a live `swatch run` process (§7.1).               #
 #                                                                              #
 # The tests above prove the two-stage *decision* (`on_signal` → drain/force) and #
 # the engine's drain/force *behavior* in-process. This one closes the last seam: #
-# an actual SIGINT, delivered by the OS to a real `watchflow run` subprocess with #
+# an actual SIGINT, delivered by the OS to a real `swatch run` subprocess with #
 # a run in flight, must drive the graceful drain and exit 130 — the seam the     #
 # daemon's SIGTERM handling (v1.1.0) will build on. Signal delivery is POSIX-     #
 # specific (Windows consoles use CTRL_C_EVENT semantics), so it skips there.     #
@@ -499,7 +499,7 @@ def test_real_sigint_drains_gracefully_and_exits_130(tmp_path: Path) -> None:
     command = [
         sys.executable,
         "-m",
-        "watchflow.cli.main",
+        "swatch.cli.main",
         "run",
         str(watchdir),
         "--config",
@@ -518,7 +518,7 @@ def test_real_sigint_drains_gracefully_and_exits_130(tmp_path: Path) -> None:
             while not start_marker.exists():
                 if proc.poll() is not None:
                     raise AssertionError(
-                        f"watchflow exited early (code {proc.returncode}) before any run started"
+                        f"swatch exited early (code {proc.returncode}) before any run started"
                         f"\n--- stderr ---\n{err_log.read_text(errors='replace')}"
                     )
                 if time.monotonic() > deadline:
@@ -562,7 +562,7 @@ def test_real_sigint_drains_gracefully_and_exits_130(tmp_path: Path) -> None:
 def test_main_remaps_usage_error_to_3(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     # A non-existent PATH fails typer's `exists=True` → click UsageError (default code 2);
     # main() remaps it to 3 so 2 stays reserved for config errors (§7.2).
-    monkeypatch.setattr(sys, "argv", ["watchflow", "run", str(tmp_path / "missing")])
+    monkeypatch.setattr(sys, "argv", ["swatch", "run", str(tmp_path / "missing")])
     with pytest.raises(SystemExit) as exc:
         main_mod.main()
     assert exc.value.code == int(ExitCode.USAGE_ERROR)
@@ -571,7 +571,7 @@ def test_main_remaps_usage_error_to_3(monkeypatch: pytest.MonkeyPatch, tmp_path:
 def test_main_propagates_config_error_code(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     # typer.Exit(2) from the run command surfaces through non-standalone click as the code.
     monkeypatch.setattr(
-        sys, "argv", ["watchflow", "run", str(tmp_path), "--config", str(tmp_path / "no.toml")]
+        sys, "argv", ["swatch", "run", str(tmp_path), "--config", str(tmp_path / "no.toml")]
     )
     with pytest.raises(SystemExit) as exc:
         main_mod.main()
@@ -590,9 +590,9 @@ def test_main_maps_abort_to_130(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_main_success_does_not_exit(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     # A successful command returns None in non-standalone mode; main() falls through (exit 0).
-    monkeypatch.setattr(sys, "argv", ["watchflow", "init", str(tmp_path)])
+    monkeypatch.setattr(sys, "argv", ["swatch", "init", str(tmp_path)])
     assert main_mod.main() is None
-    assert (tmp_path / "watchflow.toml").exists()
+    assert (tmp_path / "swatch.toml").exists()
 
 
 # --------------------------------------------------------------------------- #

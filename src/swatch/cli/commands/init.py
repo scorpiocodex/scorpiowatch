@@ -1,11 +1,11 @@
-"""``watchflow init`` — scaffold a starter ``watchflow.toml``.
+"""``swatch init`` — scaffold a starter ``swatch.toml``.
 
 Writes a minimal, valid config into the target directory, refusing to clobber an existing file
 unless ``--force`` is given. The scaffold is deliberately **language-neutral**: its one active
 trigger runs a trivial portable command on any file change, and the breadth of the engine — it
 runs *any* ``command`` (an argv list) on *any* glob-matched path, in any language or a mix — is
 shown through commented, ready-to-uncomment examples (Python, JS/TS, Rust, Go, and a two-language
-full-stack config). WatchFlow itself knows nothing about languages; the user supplies commands.
+full-stack config). ScorpioWatch itself knows nothing about languages; the user supplies commands.
 """
 
 from pathlib import Path
@@ -13,18 +13,18 @@ from typing import Annotated
 
 import typer
 
-from watchflow.cli.console import console, err_console
+from swatch.cli.console import console, err_console
 
-_CONFIG_FILENAME = "watchflow.toml"
+_CONFIG_FILENAME = "swatch.toml"
 
 # A minimal, valid, language-neutral config. Only the first `[[trigger]]` is active; everything
 # below it is commented documentation the user uncomments and edits. `kind` defaults to
 # "subprocess" and the workflow/step names are supplied by the loader, so neither appears here.
 _SCAFFOLD = """\
-# watchflow.toml - WatchFlow configuration
-# Docs: https://github.com/scorpiocodex/watchflow/blob/main/docs/WATCHFLOW.md
+# swatch.toml - ScorpioWatch configuration
+# Docs: https://github.com/scorpiocodex/scorpiowatch/blob/main/docs/SCORPIOWATCH.md
 #
-# WatchFlow watches files and runs commands when they change. It is language-agnostic: a
+# ScorpioWatch watches files and runs commands when they change. It is language-agnostic: a
 # trigger matches paths by glob and runs any `command` (an argv list) as a subprocess - it
 # knows nothing about languages or toolchains. Point it at any project, in any language, or a
 # mix; you supply the command and, optionally, the `cwd` it runs in.
@@ -40,11 +40,11 @@ patterns = ["**/*"]
 
   [trigger.workflow]
   # `command` is an argv list run as a subprocess (shell=False), never a shell string. This
-  # demo uses the Python that ships with WatchFlow as a portable "echo" - it is NOT a statement
+  # demo uses the Python that ships with ScorpioWatch as a portable "echo" - it is NOT a statement
   # that your project is Python. Swap in your real command: a test runner, linter, build,
   # deploy, notifier - anything.
   steps = [
-    { command = ["python", "-c", "print('watchflow: a file changed')"] },
+    { command = ["python", "-c", "print('swatch: a file changed')"] },
   ]
 
 # --- Uncomment and adapt one for your stack --------------------------------------------------
@@ -103,15 +103,15 @@ def init(
             exists=True,
             file_okay=False,
             dir_okay=True,
-            help="Directory to scaffold watchflow.toml into.",
+            help="Directory to scaffold swatch.toml into.",
         ),
     ] = Path("."),
     force: Annotated[
         bool,
-        typer.Option("--force", "-f", help="Overwrite an existing watchflow.toml."),
+        typer.Option("--force", "-f", help="Overwrite an existing swatch.toml."),
     ] = False,
 ) -> None:
-    """Scaffold a starter watchflow.toml in PATH."""
+    """Scaffold a starter swatch.toml in PATH."""
     target = path / _CONFIG_FILENAME
     if target.exists() and not force:
         err_console.print(
@@ -121,4 +121,4 @@ def init(
 
     target.write_text(_SCAFFOLD, encoding="utf-8")
     console.print(f"  [success]✓[/success] wrote {target}")
-    console.print("  edit it, then run:  [bold]watchflow run .[/bold]")
+    console.print("  edit it, then run:  [bold]swatch run .[/bold]")

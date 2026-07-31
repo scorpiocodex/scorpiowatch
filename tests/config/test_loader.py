@@ -1,6 +1,6 @@
-"""Tests for the ``watchflow.toml`` loader: TOML → core-model mapping and clean errors.
+"""Tests for the ``swatch.toml`` loader: TOML → core-model mapping and clean errors.
 
-The loader maps the ergonomic config (``WATCHFLOW.md`` §8) onto the real core models — so the
+The loader maps the ergonomic config (``SCORPIOWATCH.md`` §8) onto the real core models — so the
 assertions here are about the produced ``Trigger``/``Workflow``/``Step`` objects and about the
 precise ``ConfigError`` a bad config raises, never a partial config or a traceback.
 """
@@ -10,12 +10,12 @@ from pathlib import Path
 
 import pytest
 
-from watchflow.config.loader import ConfigError, load
-from watchflow.core.config import WatchflowConfig
-from watchflow.core.triggers import GlobMatch
+from swatch.config.loader import ConfigError, load
+from swatch.core.config import SwatchConfig
+from swatch.core.triggers import GlobMatch
 
 
-def _write(tmp_path: Path, body: str, *, name: str = "watchflow.toml") -> Path:
+def _write(tmp_path: Path, body: str, *, name: str = "swatch.toml") -> Path:
     """Write ``body`` to a config file under ``tmp_path`` and return its path."""
     target = tmp_path / name
     target.write_text(body, encoding="utf-8")
@@ -31,7 +31,7 @@ def test_load_signature_matches_the_spec() -> None:
     sig = inspect.signature(load)
     assert list(sig.parameters) == ["path"]
     assert sig.parameters["path"].annotation is Path
-    assert sig.return_annotation is WatchflowConfig
+    assert sig.return_annotation is SwatchConfig
 
 
 # --------------------------------------------------------------------------- #

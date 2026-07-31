@@ -1622,6 +1622,69 @@ wheels = [
 ]
 
 [[package]]
+name = "scorpiowatch"
+version = "0.1.0"
+source = { editable = "." }
+dependencies = [
+    { name = "pydantic" },
+    { name = "rich" },
+    { name = "structlog" },
+    { name = "typer" },
+    { name = "watchfiles" },
+]
+
+[package.optional-dependencies]
+all = [
+    { name = "mcp" },
+    { name = "textual" },
+]
+mcp = [
+    { name = "mcp" },
+]
+tui = [
+    { name = "textual" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "commitizen" },
+    { name = "hypothesis" },
+    { name = "import-linter" },
+    { name = "mypy" },
+    { name = "pip-audit" },
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+    { name = "pytest-cov" },
+    { name = "ruff" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "mcp", marker = "extra == 'mcp'", specifier = ">=1.0.0" },
+    { name = "pydantic", specifier = ">=2.6.0" },
+    { name = "rich", specifier = ">=13.7.0" },
+    { name = "scorpiowatch", extras = ["tui", "otel", "webhooks", "queue", "git", "ci", "mcp"], marker = "extra == 'all'" },
+    { name = "structlog", specifier = ">=24.1.0" },
+    { name = "textual", marker = "extra == 'tui'", specifier = ">=0.60.0" },
+    { name = "typer", specifier = ">=0.12.0" },
+    { name = "watchfiles", specifier = ">=0.21.0" },
+]
+provides-extras = ["tui", "otel", "webhooks", "queue", "git", "ci", "mcp", "all"]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "commitizen", specifier = ">=3.27.0" },
+    { name = "hypothesis", specifier = ">=6.100.0" },
+    { name = "import-linter", specifier = ">=2.0" },
+    { name = "mypy", specifier = ">=1.10.0" },
+    { name = "pip-audit", specifier = ">=2.7.0" },
+    { name = "pytest", specifier = ">=8.0.0" },
+    { name = "pytest-asyncio", specifier = ">=0.23.0" },
+    { name = "pytest-cov", specifier = ">=5.0.0" },
+    { name = "ruff", specifier = ">=0.6.0" },
+]
+
+[[package]]
 name = "shellingham"
 version = "1.5.4"
 source = { registry = "https://pypi.org/simple" }
@@ -1914,69 +1977,6 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/56/fe/cb8ef3d6f929d14158fdaaad9925985b7310abc9384dcd4d82dd0016fb59/watchfiles-1.2.0-cp315-cp315-manylinux_2_31_riscv64.whl", hash = "sha256:cee9d5efd929efdac5f7e58f72b3376f676b64050a91c5b99a7094c5b2317488", size = 465096, upload-time = "2026-05-18T04:31:30.384Z" },
     { url = "https://files.pythonhosted.org/packages/25/91/80908e835e100527a9267147b08c0eee1fa6ab0ffec15edc04d1d44885f7/watchfiles-1.2.0-cp315-cp315-musllinux_1_1_aarch64.whl", hash = "sha256:b718bf356bbc15e559bd8ef41782b573b8ae0e3f177ab244b440568d7ea02cfb", size = 630638, upload-time = "2026-05-18T04:30:49.89Z" },
     { url = "https://files.pythonhosted.org/packages/46/4b/95ab2f256bb4af3cb2eb23b9317bda984ee6e0f11733a5c004a6c95b06e3/watchfiles-1.2.0-cp315-cp315-musllinux_1_1_x86_64.whl", hash = "sha256:922c0e019fe68b3ae392965a766b02a71ba1168c932cebc3733cd52c5fe5b377", size = 657684, upload-time = "2026-05-18T04:31:32.027Z" },
-]
-
-[[package]]
-name = "watchflow"
-version = "0.1.0"
-source = { editable = "." }
-dependencies = [
-    { name = "pydantic" },
-    { name = "rich" },
-    { name = "structlog" },
-    { name = "typer" },
-    { name = "watchfiles" },
-]
-
-[package.optional-dependencies]
-all = [
-    { name = "mcp" },
-    { name = "textual" },
-]
-mcp = [
-    { name = "mcp" },
-]
-tui = [
-    { name = "textual" },
-]
-
-[package.dev-dependencies]
-dev = [
-    { name = "commitizen" },
-    { name = "hypothesis" },
-    { name = "import-linter" },
-    { name = "mypy" },
-    { name = "pip-audit" },
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
-    { name = "pytest-cov" },
-    { name = "ruff" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "mcp", marker = "extra == 'mcp'", specifier = ">=1.0.0" },
-    { name = "pydantic", specifier = ">=2.6.0" },
-    { name = "rich", specifier = ">=13.7.0" },
-    { name = "structlog", specifier = ">=24.1.0" },
-    { name = "textual", marker = "extra == 'tui'", specifier = ">=0.60.0" },
-    { name = "typer", specifier = ">=0.12.0" },
-    { name = "watchfiles", specifier = ">=0.21.0" },
-    { name = "watchflow", extras = ["tui", "otel", "webhooks", "queue", "git", "ci", "mcp"], marker = "extra == 'all'" },
-]
-provides-extras = ["tui", "otel", "webhooks", "queue", "git", "ci", "mcp", "all"]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "commitizen", specifier = ">=3.27.0" },
-    { name = "hypothesis", specifier = ">=6.100.0" },
-    { name = "import-linter", specifier = ">=2.0" },
-    { name = "mypy", specifier = ">=1.10.0" },
-    { name = "pip-audit", specifier = ">=2.7.0" },
-    { name = "pytest", specifier = ">=8.0.0" },
-    { name = "pytest-asyncio", specifier = ">=0.23.0" },
-    { name = "pytest-cov", specifier = ">=5.0.0" },
-    { name = "ruff", specifier = ">=0.6.0" },
 ]
 
 [[package]]

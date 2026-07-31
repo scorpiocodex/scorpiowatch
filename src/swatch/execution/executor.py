@@ -46,7 +46,7 @@ from uuid import UUID, uuid4
 import structlog
 from pydantic import BaseModel, ConfigDict, Field
 
-from watchflow.core.workflow import Step, Workflow
+from swatch.core.workflow import Step, Workflow
 
 _log = structlog.get_logger(__name__)
 
@@ -372,7 +372,7 @@ class _BoundedText:
             self._dropped = True
         if self._dropped:
             kib = self._cap // 1024
-            return f"[watchflow: earlier output truncated, retaining last {kib} KiB]\n{text}"
+            return f"[swatch: earlier output truncated, retaining last {kib} KiB]\n{text}"
         return text
 
 

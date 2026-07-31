@@ -1,4 +1,4 @@
-"""Runnable demo of the WatchFlow ingestion slice.
+"""Runnable demo of the ScorpioWatch ingestion slice.
 
     FilesystemAdapter  ->  EventBus  ->  a subscriber that prints each Event
 
@@ -14,8 +14,8 @@ import asyncio
 import sys
 from pathlib import Path
 
-from watchflow.adapters.filesystem import FilesystemAdapter
-from watchflow.core.events import BackpressureStrategy, EventBus
+from swatch.adapters.filesystem import FilesystemAdapter
+from swatch.core.events import BackpressureStrategy, EventBus
 
 
 async def main(root: Path) -> None:

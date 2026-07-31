@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 from pydantic import BaseModel, ValidationError
 
-from watchflow.core.workflow import Step, Workflow
+from swatch.core.workflow import Step, Workflow
 
 
 def test_step_and_workflow_are_pydantic_models() -> None:

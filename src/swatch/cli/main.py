@@ -1,4 +1,4 @@
-"""The WatchFlow CLI application and its process entry point.
+"""The ScorpioWatch CLI application and its process entry point.
 
 Builds the ``typer`` app (``run`` + ``init`` — the v0.1.0 command surface per ``ROADMAP.md``;
 ``check``/``doctor``/``list``/``mcp``/… in ``UI_DESIGN.md`` §4.2 arrive in later versions) and
@@ -12,9 +12,9 @@ from contextlib import suppress
 
 import typer
 
-from watchflow.cli.commands.init import init
-from watchflow.cli.commands.run import run
-from watchflow.cli.exit_codes import ExitCode
+from swatch.cli.commands.init import init
+from swatch.cli.commands.run import run
+from swatch.cli.exit_codes import ExitCode
 
 # typer (0.27+) vendors click into ``typer._click`` and raises the vendored exceptions, not
 # the top-level ``click`` package's. ``typer.Abort`` is re-exported publicly (used below); the
@@ -26,7 +26,7 @@ except ImportError:  # pragma: no cover — older typer using the un-vendored cl
     from click.exceptions import UsageError as _UsageError  # type: ignore[assignment]
 
 app = typer.Typer(
-    name="watchflow",
+    name="swatch",
     help="Cross-platform, event-driven workflow orchestration.",
     no_args_is_help=True,
     add_completion=False,
