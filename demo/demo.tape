@@ -9,32 +9,38 @@
 # Prerequisites and the full render walkthrough live in demo/README.md. Requires vhs >= 0.7
 # (the `Wait` command) and a synced virtualenv at ./.venv.
 #
-# Shape of the recording (~18s, loops cleanly):
+# Shape of the recording (~19s, loops cleanly):
 #   1. `swatch init .` in an empty directory  -> scaffolds swatch.toml
 #   2. `cd` into the toy project
-#   3. `swatch run . --once`                  -> a real file change fires a real pytest Run
+#   3. `swatch run .`                         -> starts watching, continuously
+#   4. a simulated save fires a real pytest Run -> green verdict
+#   5. a second save fires another            -> proves it is a loop, not a one-shot
+#   6. Ctrl+C                                 -> graceful drain, then the run tally
 #
-# The file change comes from a background writer started in the hidden setup block. It does
-# not fire once at a guessed moment — it writes every second for 20 seconds, so the Run is
-# triggered by whichever write first lands after the watcher arms. That makes the recording
-# immune to a slow interpreter start rather than racing it.
+# ── TIMING ──────────────────────────────────────────────────────────────────────────────
+# The two saves come from a background writer started in the hidden setup block, at fixed
+# offsets chosen to land a few seconds after the engine arms. Each "save" is TWO writes
+# 200ms apart: comfortably inside the FilesystemAdapter's 400ms debounce, so they coalesce
+# into a single Run, while giving the trigger two chances to be caught if the watcher is
+# still arming. If a slow machine pushes engine startup past the first offset the clip
+# simply records one Run instead of two — bump SAVE1/SAVE2 below and re-render.
 
 Output demo/demo.gif
 
 # ── Terminal ────────────────────────────────────────────────────────────────────────────
 Set Shell bash
 Set FontFamily "JetBrains Mono"
-Set FontSize 18
-Set Width 960
-Set Height 560
-Set Padding 22
-Set Margin 24
+Set FontSize 20
+Set Width 1200
+Set Height 700
+Set Padding 24
+Set Margin 26
 Set MarginFill "#0F1219"
 Set BorderRadius 10
 Set WindowBar Colorful
 Set WindowBarSize 40
 Set Framerate 20
-Set TypingSpeed 60ms
+Set TypingSpeed 50ms
 Set WaitTimeout 60s
 
 # The UI_DESIGN.md §2.1 palette mapped onto the 16 ANSI slots the CLI's rich.Theme uses:
@@ -61,7 +67,7 @@ Type@1ms 'export PATH="$REPO/.venv/bin:$REPO/.venv/Scripts:$PATH"' Enter
 Type@1ms "export PS1='\[\e[90m\]\W\[\e[0m\] \[\e[93m\]❯\[\e[0m\] '" Enter
 
 # Record against throwaway copies, never the tracked files: `swatch init` would otherwise
-# overwrite demo/project/swatch.toml, and the simulated edit would leave app.py dirty.
+# overwrite demo/project/swatch.toml, and the simulated saves would leave app.py dirty.
 Type@1ms 'WORK="$(mktemp -d)"' Enter
 Type@1ms 'mkdir -p "$WORK/hello"' Enter
 Type@1ms 'cp -r "$REPO/demo/project" "$WORK/my-app"' Enter
@@ -69,36 +75,43 @@ Type@1ms 'cp -r "$REPO/demo/project" "$WORK/my-app"' Enter
 # Warm the interpreter so the first *visible* command is not also paying import cost.
 Type@1ms 'swatch --help >/dev/null 2>&1' Enter
 
-# The simulated editor save: append a newline to app.py once a second. Absolute path — a
-# background subshell keeps the directory it was forked in, which is not where the Run
-# happens. `disown` stops bash printing "[1]+ Done" over the recording when it finishes.
-Type@1ms '( sleep 12; for _ in {1..20}; do echo >> "$WORK/my-app/app.py"; sleep 1; done ) >/dev/null 2>&1 & disown' Enter
+# The two simulated saves. Absolute path — a background subshell keeps the directory it was
+# forked in, which is not where the Run happens. `disown` stops bash printing "[1]+ Done"
+# over the recording. SAVE1=10s and SAVE2=+4s are measured from roughly one second before
+# the visible recording starts; see the TIMING note at the top of this file.
+Type@1ms 'F="$WORK/my-app/app.py"' Enter
+Type@1ms '( sleep 11; echo >> "$F"; sleep 0.2; echo >> "$F"; sleep 3.8; echo >> "$F"; sleep 0.2; echo >> "$F" ) >/dev/null 2>&1 & disown' Enter
 
 Type@1ms 'cd "$WORK/hello"' Enter
 Type@1ms 'clear' Enter
 Show
 
 # ── 1. Scaffold a config ────────────────────────────────────────────────────────────────
-Sleep 1s
+Sleep 800ms
 Type "swatch init ."
-Sleep 400ms
+Sleep 350ms
 Enter
-Sleep 2500ms
+Sleep 1800ms
 
 # ── 2. Move to a project that already has one ───────────────────────────────────────────
 Type "cd ../my-app"
 Sleep 300ms
 Enter
-Sleep 800ms
+Sleep 700ms
 
-# ── 3. Watch it react to a real file change ─────────────────────────────────────────────
-# `--once` rather than a continuous watch: the clip then ends because the program ended,
-# not because a signal was typed at it, which is what lets the GIF loop cleanly. The
-# everyday form is `swatch run .`, which watches until Ctrl+C.
-Type "swatch run . --once"
-Sleep 400ms
+# ── 3. Start watching — the everyday form, no flags ─────────────────────────────────────
+Type "swatch run ."
+Sleep 350ms
 Enter
 
-# Hold until the verdict is actually on screen, however long the trigger took to land.
-Wait+Screen /succeeded/
-Sleep 2500ms
+# ── 4 + 5. Two saves land here, ~4s apart, each firing a real pytest Run ────────────────
+# Hold until the second verdict is actually on screen rather than guessing at it: the
+# regex needs TWO timestamped success lines, so it cannot be satisfied by the first Run.
+Wait+Screen /succeeded[\s\S]*succeeded/
+Sleep 1200ms
+
+# ── 6. Graceful shutdown ────────────────────────────────────────────────────────────────
+# One Ctrl+C drains in-flight Runs and prints the tally; a second would force-cancel.
+Ctrl+C
+Wait+Screen /processed/
+Sleep 2s

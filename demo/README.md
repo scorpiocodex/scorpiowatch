@@ -56,7 +56,7 @@ From the **repository root** — the tape's paths are relative to it:
 vhs demo/demo.tape
 ```
 
-That writes `demo/demo.gif` (roughly 18 seconds, 960×560). Expect it to take a little longer
+That writes `demo/demo.gif` (roughly 19 seconds, 1200×700). Expect it to take a little longer
 than the clip itself: VHS renders every frame, then encodes.
 
 ### 4. Check and commit
@@ -72,14 +72,17 @@ git commit -m "chore(demo): render demo.gif from demo.tape"
 
 ## What the recording shows
 
-Three beats, one continuous terminal session, no cuts:
+Six beats, one continuous terminal session, no cuts:
 
 1. **`swatch init .`** in an empty directory — scaffolds a `swatch.toml`.
 2. **`cd ../my-app`** — into a project that already has one (a throwaway copy of `project/`).
-3. **`swatch run . --once`** — the engine starts, a background writer simulates an editor
-   save, the `tests` trigger matches, `pytest` runs, and the Run reports its verdict.
+3. **`swatch run .`** — the engine starts watching. No flags: the everyday form.
+4. A background writer simulates an editor save; the `tests` trigger matches, `pytest` runs,
+   and the Run reports a green verdict.
+5. A second save, ~4 s later — proving this is a loop, not a one-shot.
+6. **`Ctrl+C`** — a graceful drain, then the run tally.
 
-Verbatim output from a rehearsal of exactly that sequence:
+Verbatim output from a rehearsal of beats 1–5:
 
 ```
   ✓ wrote swatch.toml
@@ -88,23 +91,32 @@ Verbatim output from a rehearsal of exactly that sequence:
   swatch  ·  engine starting
 
   ✓ config loaded    swatch.toml  ·  1 triggers, 1 workflows
-  running once over .  ·  first match, then exit
+  watching .  ·  1 triggers armed  ·  ^C to stop
 
-  01:47:44  ·  tests  → started  r_6cc1
-  01:47:45  ·  tests  ✓ succeeded  0.8s
-
-  processed 1 run(s): 1 succeeded, 0 failed, 0 cancelled
+  02:04:43  ·  tests  → started  r_5c1f
+  02:04:44  ·  tests  ✓ succeeded  0.9s
+  02:04:47  ·  tests  → started  r_8b69
+  02:04:48  ·  tests  ✓ succeeded  0.9s
 ```
 
-`pytest`'s own output is absent by design, not by omission: the default view is
-**quiet-on-success, loud-on-failure** ([`UI_DESIGN.md`](../docs/UI_DESIGN.md) §4.3). Had a
-test failed, the failing step's output tail would be printed under the verdict.
+Beat 6 then adds a `draining…` notice and the tally
+(`processed 2 run(s): 2 succeeded, 0 failed, 0 cancelled`), exiting 130 as an interrupt
+should. That beat is the one part **not** reproduced in the rehearsal above: it was authored
+on Windows, where neither MSYS `kill -INT` nor a console control event reaches the handler
+`swatch` installs. It is ordinary POSIX signal handling and will work under the Linux/WSL
+terminal the tape renders in — but it is the first thing to check in the finished GIF.
 
-**Why `--once` and not a continuous watch.** `swatch run .` watches until you interrupt it,
-and that is the everyday form. But a recording of it has to end with a typed `Ctrl+C`, which
-leaves `draining… press Ctrl+C again to force` as the closing frame — a clip that appears to
-end in an abort, and loops back to the prompt from a half-shut-down state. With `--once` the
-clip ends because the program ended, on the verdict, at exit code 0.
+### Two things the clip will *not* show, by design
+
+Both are correct behaviour, not defects in the recording:
+
+- **No `pytest` output.** The default view is **quiet-on-success, loud-on-failure**
+  ([`UI_DESIGN.md`](../docs/UI_DESIGN.md) §4.3). Had a test failed, the failing step's output
+  tail would be printed, framed, under the verdict.
+- **No spinner.** The transient liveness spinner is revealed only once a step has been
+  running for ~1 s (`reporter.py`, `_LIVENESS_DELAY_S`). These three tests finish in a
+  fraction of that, so the spinner never gets to appear — the price of the fast, always-green
+  suite the demo wants. To see it, give `project/` a step slow enough to cross the threshold.
 
 ---
 
@@ -113,8 +125,8 @@ clip ends because the program ended, on the verdict, at exit code 0.
 `project/` is a working example, not just a recording prop. From the repository root:
 
 ```bash
-uv run swatch run demo/project --once   # one batch, then exit — what the GIF shows
-uv run swatch run demo/project          # watch until Ctrl+C — the everyday form
+uv run swatch run demo/project          # watch until Ctrl+C — what the GIF shows
+uv run swatch run demo/project --once   # one batch, then exit — the CI form
 ```
 
 Then edit `demo/project/app.py` in another terminal. Each save reruns the three tests.
