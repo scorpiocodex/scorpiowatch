@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "watchflow"
+name = "scorpiowatch"
 version = "0.1.0"
 description = "Cross-platform, event-driven workflow orchestration for local dev, CI/CD, DevOps automation, and MCP-powered AI systems"
 readme = "README.md"
@@ -65,13 +65,13 @@ queue = []                     # queue source-adapter plugin — v2.1.0
 git = []                       # git source-adapter plugin — v2.1.0
 ci = []                        # ci-provider source-adapter plugin — v2.1.0
 mcp = ["mcp>=1.0.0"]           # official MCP SDK (stack §1) — server mode in v0.3.0
-all = ["watchflow[tui,otel,webhooks,queue,git,ci,mcp]"]
+all = ["scorpiowatch[tui,otel,webhooks,queue,git,ci,mcp]"]
 
 [project.urls]
-Homepage = "https://github.com/scorpiocodex/watchflow"
-Repository = "https://github.com/scorpiocodex/watchflow"
-Documentation = "https://github.com/scorpiocodex/watchflow/blob/main/docs/WATCHFLOW.md"
-"Bug Tracker" = "https://github.com/scorpiocodex/watchflow/issues"
+Homepage = "https://github.com/scorpiocodex/scorpiowatch"
+Repository = "https://github.com/scorpiocodex/scorpiowatch"
+Documentation = "https://github.com/scorpiocodex/scorpiowatch/blob/main/docs/WATCHFLOW.md"
+"Bug Tracker" = "https://github.com/scorpiocodex/scorpiowatch/issues"
 
 [dependency-groups]
 # Development toolchain from CODING_STANDARD.md §1 (testing + typing + lint/format).
@@ -235,7 +235,7 @@ allowed_prefixes = [
 root_package = "swatch"
 
 [[tool.importlinter.contracts]]
-name = "WatchFlow layered architecture (ARCHITECTURE sec.2; ADR-0010 Option A; ADR-0012)"
+name = "ScorpioWatch layered architecture (ARCHITECTURE sec.2; ADR-0010 Option A; ADR-0012)"
 type = "layers"
 containers = ["swatch"]
 layers = [
