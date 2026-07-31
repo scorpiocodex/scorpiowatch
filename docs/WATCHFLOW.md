@@ -55,6 +55,8 @@ WatchFlow sits between *"something happened"* and *"the right work ran, safely, 
 - **DevOps automation** — react to config rewrites, certificate renewals, queue messages, and webhooks by running health checks, reloads, or notifications, as a long-lived, daemonizable service.
 - **MCP-powered AI systems** — act as the safe local execution substrate an AI agent reaches for instead of shelling out directly: an agent calls an MCP tool, WatchFlow runs the workflow with full dedupe, audit trail, and no `shell=True` anywhere in the path.
 
+**Language-agnostic by design.** A Trigger matches paths by glob and runs any `command` (an argv list) as a subprocess — the engine knows nothing about programming languages or toolchains. It runs your test runner, linter, build, deploy, or notifier in any language, or several at once. A polyglot **full-stack monorepo** is one config: watch `frontend/**` and run a Node command, watch `backend/**` and run a Python command, each in its own `cwd`. (Honest sharp edge for now: you name each toolchain explicitly in the command, and every Step inherits the one environment WatchFlow runs under; per-trigger environment/toolchain resolution — running each Trigger inside its own language's toolchain automatically — is a v1.1 operability item, see [`ROADMAP.md`](./ROADMAP.md).)
+
 The lifecycle of a single event, regardless of source:
 
 ```
@@ -169,26 +171,36 @@ watchflow init                 # scaffold watchflow.toml
 watchflow run .                # start the engine, headless
 ```
 
-Minimal config — a file-change Trigger and an MCP-callable Workflow:
+`watchflow init` scaffolds a language-neutral starter (a demo trigger plus commented examples for Python, JS/TS, Rust, Go, and a two-language full-stack config). A Trigger runs any `command` on any glob-matched change — the config below shows two languages in one file, a Node front end and a Python back end, each in its own `cwd`:
 
 ```toml
 [[trigger]]
-name = "run-tests"
+name = "frontend"
 source = "filesystem"
-patterns = ["**/*.py"]
-threshold = 0.50
+patterns = ["frontend/**/*.ts", "frontend/**/*.tsx"]
+cooldown_ms = 500          # per-trigger leading-edge cooldown; omit to use the default, 0 disables
 
   [trigger.workflow]
   steps = [
-    { kind = "subprocess", command = ["pytest", "-x", "--tb=short"], timeout_s = 30 },
+    { kind = "subprocess", command = ["npm", "test"], cwd = "frontend", timeout_s = 300 },
   ]
 
-[mcp.server]
+[[trigger]]
+name = "backend"
+source = "filesystem"
+patterns = ["backend/**/*.py"]
+
+  [trigger.workflow]
+  steps = [
+    { kind = "subprocess", command = ["pytest", "-x", "--tb=short"], cwd = "backend", timeout_s = 300 },
+  ]
+
+[mcp.server]                # optional: expose Workflows to AI agents over MCP
 enabled = true
 expose = ["trigger_workflow", "get_run_status"]
 ```
 
-An AI agent connected over MCP can now call `trigger_workflow("run-tests")` directly — no shell access required.
+`cwd` defaults to the watched project root when unset. An AI agent connected over MCP can call `trigger_workflow("backend")` directly — no shell access required. The `Trigger` fields are specified in [`MODULE_SPECIFICATIONS.md`](./MODULE_SPECIFICATIONS.md) §3; `Step` execution (command, `cwd`, `timeout_s`) in [`EXECUTION_MODEL.md`](./EXECUTION_MODEL.md) §2 and §6.
 
 ---
 
