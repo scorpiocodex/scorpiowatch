@@ -1,8 +1,10 @@
-# watchflow.toml — a runnable local-dev example.
+# watchflow.toml - a runnable, language-neutral local-dev example.
 #
-# Watches for changes to .txt and .py files under this directory and runs a tiny
-# cross-platform command (a Python one-liner, so it works on Linux/macOS/Windows without a
-# shell). Try it:
+# WatchFlow watches files and runs commands on change. It is language-agnostic: a trigger
+# matches paths by glob and runs any `command` (an argv list) - it knows nothing about
+# languages. The active trigger below runs on ANY file change using a trivial portable command
+# (the Python that ships with WatchFlow, used here purely as a cross-platform "echo"), so it
+# works on any project without a toolchain. Try it:
 #
 #   cd examples/local-dev
 #   uv run watchflow run . --config watchflow.toml
@@ -11,28 +13,19 @@
 #   # or run a single batch and exit (CI mode, exits 0 on success / 1 on failure):
 #   uv run watchflow run . --config watchflow.toml --once
 #
-# NOTE: until dedupe lands (v0.3.0) a file matching N of a trigger's patterns fires its
-# workflow N times, so keep a trigger's patterns non-overlapping. The two triggers below
-# match disjoint file types on purpose.
+# For a two-language (frontend + backend) config, see ../fullstack/watchflow.toml.
 
 [[trigger]]
-name = "on-text-change"
+name = "on-change"
 source = "filesystem"
-patterns = ["**/*.txt", "**/*.md"]
+# `**/*` watches every file under this directory (the watcher skips .git, node_modules, and
+# the like). Per-trigger cooldown is on by default, so the burst of events one save produces
+# collapses to a single run.
+patterns = ["**/*"]
 
   [trigger.workflow]
-  # `command` is an argv list run as a subprocess (shell=False) — never a shell string.
+  # `command` is an argv list run as a subprocess (shell=False) - never a shell string. Replace
+  # it with your project's real command, in any language.
   steps = [
-    { command = ["python", "-c", "print('watchflow: a text file changed')"], timeout_s = 10 },
-  ]
-
-[[trigger]]
-name = "on-python-change"
-source = "filesystem"
-patterns = ["**/*.py"]
-
-  [trigger.workflow]
-  steps = [
-    { name = "announce", command = ["python", "-c", "print('watchflow: a .py file changed')"] },
-    { name = "syntax-check", command = ["python", "-c", "print('watchflow: (pretend) checking syntax…')"], timeout_s = 15 },
+    { name = "announce", command = ["python", "-c", "print('watchflow: a file changed')"] },
   ]
