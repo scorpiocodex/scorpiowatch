@@ -40,19 +40,19 @@ classifiers = [
 
 # Core runtime dependencies: only what the v0.1.0 ROADMAP scope actually needs
 # (FilesystemAdapter + ManualAdapter + glob TriggerEngine + single-subprocess
-# Executor + `watchflow run` / `watchflow init`). Everything else in the
+# Executor + `swatch run` / `swatch init`). Everything else in the
 # CODING_STANDARD.md §1 stack is deferred to an optional extra or a later version.
 dependencies = [
-    "typer>=0.12.0",      # CLI framework — `watchflow run` / `watchflow init`
+    "typer>=0.12.0",      # CLI framework — `swatch run` / `swatch init`
     "rich>=13.7.0",       # readable CLI output (paired with typer per stack §1)
     "watchfiles>=0.21.0", # FilesystemAdapter — async-native, Rust-backed
     "structlog>=24.1.0",  # structured logging (Constitution Article VIII)
-    "pydantic>=2.6.0",    # watchflow.toml schema validation (config layer)
+    "pydantic>=2.6.0",    # swatch.toml schema validation (config layer)
 ]
 
 [project.scripts]
-# The console entry point: `watchflow ...` runs the typer CLI (run / init in v0.1.0).
-watchflow = "swatch.cli.main:main"
+# The console entry point: `swatch ...` runs the typer CLI (run / init in v0.1.0).
+swatch = "swatch.cli.main:main"
 
 [project.optional-dependencies]
 # The eight extras enumerated in WATCHFLOW.md §1. Only the extras whose concrete

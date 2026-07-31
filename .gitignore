@@ -1,5 +1,5 @@
-# --- WatchFlow runtime state (per PROJECT_STRUCTURE.md §3) ---
-.watchflow/
+# --- ScorpioWatch runtime state (per PROJECT_STRUCTURE.md §3) ---
+.swatch/
 
 # --- Byte-compiled / optimized / DLL files ---
 __pycache__/

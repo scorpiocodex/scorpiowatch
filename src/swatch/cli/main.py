@@ -26,7 +26,7 @@ except ImportError:  # pragma: no cover — older typer using the un-vendored cl
     from click.exceptions import UsageError as _UsageError  # type: ignore[assignment]
 
 app = typer.Typer(
-    name="watchflow",
+    name="swatch",
     help="Cross-platform, event-driven workflow orchestration.",
     no_args_is_help=True,
     add_completion=False,

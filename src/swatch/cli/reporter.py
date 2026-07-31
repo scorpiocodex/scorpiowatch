@@ -53,7 +53,7 @@ _LIVENESS_TAIL_CHARS = 80
 
 
 class OutputMode(StrEnum):
-    """How ``watchflow run`` renders its two voices (see the module docstring)."""
+    """How ``swatch run`` renders its two voices (see the module docstring)."""
 
     DEFAULT = "default"
     VERBOSE = "verbose"
@@ -142,7 +142,7 @@ class _Liveness:
 class RunReporter:
     """Render the Scheduler's run lifecycle and subprocess output per an :class:`OutputMode`.
 
-    One instance per ``watchflow run`` invocation. Implements the
+    One instance per ``swatch run`` invocation. Implements the
     :class:`~swatch.core.reporting.RunReporter` port structurally; the Scheduler calls it and
     never learns which mode is active.
     """
@@ -177,7 +177,7 @@ class RunReporter:
             return
         workflows = len({trigger.workflow.name for trigger in cfg.triggers})
         self._console.print()
-        self._console.print("  [bold]watchflow[/bold]  ·  engine starting")
+        self._console.print("  [bold]swatch[/bold]  ·  engine starting")
         self._console.print()
         self._console.print(
             f"  [success]✓[/success] config loaded    {config_path}  ·  "

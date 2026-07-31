@@ -1,4 +1,4 @@
-"""The ``watchflow.toml`` loader.
+"""The ``swatch.toml`` loader.
 
 Under ADR-0012 ``config/`` is a pure loader: it reads and validates configuration and
 returns the core-owned :class:`~swatch.core.config.SwatchConfig`. It defines no
@@ -25,7 +25,7 @@ Mapping rules (v0.1.0):
 Strictness: keys *inside* a ``[[trigger]]`` block (and its workflow/steps) are validated
 strictly — an unknown key such as a ``patttern`` typo is a hard error, never silently
 dropped. Unknown *top-level* sections (e.g. a future ``[mcp]``) are ignored so a
-forward-looking ``watchflow.toml`` still loads. Any failure raises :class:`ConfigError`
+forward-looking ``swatch.toml`` still loads. Any failure raises :class:`ConfigError`
 with a precise, human-readable message and never a partially-applied config
 (``MODULE_SPECIFICATIONS.md`` §10 invariant); the CLI maps that to exit code 2
 (``EXECUTION_MODEL.md`` §7.2).
@@ -52,7 +52,7 @@ _STEP_KEYS = frozenset({"name", "kind", "command", "timeout_s", "cwd", "env_allo
 
 
 class ConfigError(Exception):
-    """A ``watchflow.toml`` could not be read, parsed, or validated.
+    """A ``swatch.toml`` could not be read, parsed, or validated.
 
     Raised for every configuration failure — a missing file, malformed TOML, an unknown
     key, an unsupported step kind, or a field that fails the core model's validation — so
@@ -68,14 +68,14 @@ class ConfigError(Exception):
 
         Args:
             message: A precise, human-readable description of what is wrong.
-            path: The ``watchflow.toml`` the error concerns, if known.
+            path: The ``swatch.toml`` the error concerns, if known.
         """
         self.path = path
         super().__init__(message)
 
 
 def load(path: Path) -> SwatchConfig:
-    """Parse and validate a ``watchflow.toml`` into a :class:`SwatchConfig`.
+    """Parse and validate a ``swatch.toml`` into a :class:`SwatchConfig`.
 
     Reads ``path`` as TOML, maps every ``[[trigger]]`` onto the core ``Trigger`` /
     ``Workflow`` / ``Step`` models (see the module docstring for the mapping), and returns
@@ -83,7 +83,7 @@ def load(path: Path) -> SwatchConfig:
     are errors.
 
     Args:
-        path: Filesystem path to the ``watchflow.toml`` to load.
+        path: Filesystem path to the ``swatch.toml`` to load.
 
     Returns:
         The validated top-level configuration.

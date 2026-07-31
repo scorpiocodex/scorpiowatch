@@ -16,11 +16,11 @@ from swatch.core.triggers import Trigger
 
 
 class SwatchConfig(BaseModel):
-    """The top-level validated configuration parsed from ``watchflow.toml``.
+    """The top-level validated configuration parsed from ``swatch.toml``.
 
     The domain aggregate the ``Engine`` consumes (``MODULE_SPECIFICATIONS.md`` §11) and
     the config loader returns (§10). Per ADR-0012 ``config/`` owns no models of its own:
-    :func:`swatch.config.loader.load` reads the ergonomic ``watchflow.toml`` and *maps*
+    :func:`swatch.config.loader.load` reads the ergonomic ``swatch.toml`` and *maps*
     it onto the core-owned models (``Trigger``/``Workflow``/``Step``), so this aggregate is
     simply the list of fully-built ``Trigger``s the loader produced — the mapping (plural
     ``patterns`` → per-pattern ``Trigger``s, default step ``kind``, supplied names) lives in

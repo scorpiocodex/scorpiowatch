@@ -1,4 +1,4 @@
-"""``watchflow run`` — assemble the full pipeline and run it in the foreground.
+"""``swatch run`` — assemble the full pipeline and run it in the foreground.
 
 Loads the config, constructs a ``FilesystemAdapter`` over the watched path (the CLI is the
 Interface layer, so it may build concrete adapters and inject them into the core ``Engine``),
@@ -42,14 +42,12 @@ def run(
             exists=True,
             file_okay=False,
             dir_okay=True,
-            help="Directory to watch (also where watchflow.toml is discovered).",
+            help="Directory to watch (also where swatch.toml is discovered).",
         ),
     ] = Path("."),
     config: Annotated[
         Path | None,
-        typer.Option(
-            "--config", "-c", help="Path to watchflow.toml (default: PATH/watchflow.toml)."
-        ),
+        typer.Option("--config", "-c", help="Path to swatch.toml (default: PATH/swatch.toml)."),
     ] = None,
     once: Annotated[
         bool,
@@ -72,7 +70,7 @@ def run(
     mode = _resolve_mode(verbose=verbose, quiet=quiet, as_json=as_json)
     configure_logging(verbose=mode is OutputMode.VERBOSE)
     reporter = RunReporter(mode)
-    config_path = config if config is not None else path / "watchflow.toml"
+    config_path = config if config is not None else path / "swatch.toml"
 
     try:
         cfg = load(config_path)
@@ -97,7 +95,7 @@ def _default_step_cwds(cfg: SwatchConfig, root: Path) -> None:
 
     A step's ``cwd`` is where its subprocess runs. Left unset, ``create_subprocess_exec``
     inherits the *invocation* directory — so a freshly-init'd config would run pytest wherever
-    ``watchflow`` was launched, not in the project it watches (the real-project finding). This
+    ``swatch`` was launched, not in the project it watches (the real-project finding). This
     points an unset cwd at the watched root, and resolves a relative cwd against it, always to
     an absolute path — so even a relative ``run`` PATH lands the subprocess in the right place
     regardless of where the command was invoked. An explicit cwd always wins over the default;

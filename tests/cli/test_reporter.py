@@ -300,9 +300,7 @@ async def test_liveness_schedules_and_cancels_reveal_on_a_terminal() -> None:
 
 def test_banner_default_shows_watching_when_continuous() -> None:
     reporter, out, _ = _reporter(OutputMode.DEFAULT)
-    reporter.banner(
-        SwatchConfig(triggers=[]), Path("proj"), Path("proj/watchflow.toml"), once=False
-    )
+    reporter.banner(SwatchConfig(triggers=[]), Path("proj"), Path("proj/swatch.toml"), once=False)
     text = out.getvalue()
     assert "engine starting" in text
     assert "watching" in text  # the continuous (non-once) banner branch

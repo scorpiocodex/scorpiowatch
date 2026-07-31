@@ -1,4 +1,4 @@
-"""Tests for the ``watchflow.toml`` loader: TOML → core-model mapping and clean errors.
+"""Tests for the ``swatch.toml`` loader: TOML → core-model mapping and clean errors.
 
 The loader maps the ergonomic config (``WATCHFLOW.md`` §8) onto the real core models — so the
 assertions here are about the produced ``Trigger``/``Workflow``/``Step`` objects and about the
@@ -15,7 +15,7 @@ from swatch.core.config import SwatchConfig
 from swatch.core.triggers import GlobMatch
 
 
-def _write(tmp_path: Path, body: str, *, name: str = "watchflow.toml") -> Path:
+def _write(tmp_path: Path, body: str, *, name: str = "swatch.toml") -> Path:
     """Write ``body`` to a config file under ``tmp_path`` and return its path."""
     target = tmp_path / name
     target.write_text(body, encoding="utf-8")

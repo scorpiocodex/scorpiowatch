@@ -372,7 +372,7 @@ class _BoundedText:
             self._dropped = True
         if self._dropped:
             kib = self._cap // 1024
-            return f"[watchflow: earlier output truncated, retaining last {kib} KiB]\n{text}"
+            return f"[swatch: earlier output truncated, retaining last {kib} KiB]\n{text}"
         return text
 
 
