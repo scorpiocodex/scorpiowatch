@@ -4,8 +4,8 @@ This is the one trivial test permitted by task 0.2; real per-module tests arrive
 with the modules they cover (CODING_STANDARD.md §4).
 """
 
-import watchflow
+import swatch
 
 
 def test_package_imports() -> None:
-    assert watchflow.__name__ == "watchflow"
+    assert swatch.__name__ == "swatch"

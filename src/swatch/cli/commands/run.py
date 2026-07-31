@@ -16,16 +16,16 @@ from typing import Annotated
 
 import typer
 
-from watchflow.adapters.filesystem import FilesystemAdapter
-from watchflow.cli.console import err_console
-from watchflow.cli.exit_codes import ExitCode
-from watchflow.cli.log import configure_logging
-from watchflow.cli.reporter import OutputMode, RunReporter
-from watchflow.config.loader import ConfigError, load
-from watchflow.core.config import WatchflowConfig
-from watchflow.core.engine import Engine, EngineStartupError
-from watchflow.core.scheduler import Run
-from watchflow.execution.executor import RunState
+from swatch.adapters.filesystem import FilesystemAdapter
+from swatch.cli.console import err_console
+from swatch.cli.exit_codes import ExitCode
+from swatch.cli.log import configure_logging
+from swatch.cli.reporter import OutputMode, RunReporter
+from swatch.config.loader import ConfigError, load
+from swatch.core.config import SwatchConfig
+from swatch.core.engine import Engine, EngineStartupError
+from swatch.core.scheduler import Run
+from swatch.execution.executor import RunState
 
 # Snappier than watchfiles' 1600 ms default — a dev tool should react within a fraction of a
 # second — while still coalescing the burst of writes a single editor save produces.
@@ -92,7 +92,7 @@ def run(
     raise typer.Exit(code)
 
 
-def _default_step_cwds(cfg: WatchflowConfig, root: Path) -> None:
+def _default_step_cwds(cfg: SwatchConfig, root: Path) -> None:
     """Resolve every step's working directory against the watched project ``root``.
 
     A step's ``cwd`` is where its subprocess runs. Left unset, ``create_subprocess_exec``
@@ -140,7 +140,7 @@ def _resolve_mode(*, verbose: bool, quiet: bool, as_json: bool) -> OutputMode:
     return OutputMode.DEFAULT
 
 
-async def _serve(cfg: WatchflowConfig, path: Path, reporter: RunReporter, *, once: bool) -> int:
+async def _serve(cfg: SwatchConfig, path: Path, reporter: RunReporter, *, once: bool) -> int:
     """Run the Engine to completion under signal handling; return the §7.2 exit code."""
     adapter = FilesystemAdapter(path, debounce_ms=_DEBOUNCE_MS, step_ms=_STEP_MS)
     engine = Engine(cfg, sources=[adapter], reporter=reporter)

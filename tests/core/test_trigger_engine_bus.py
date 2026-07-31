@@ -9,10 +9,10 @@ from uuid import uuid4
 
 import pytest
 
-from watchflow.adapters.filesystem import FilesystemAdapter
-from watchflow.core.events import BackpressureStrategy, Event, EventBus
-from watchflow.core.triggers import GlobMatch, Trigger, TriggerEngine, TriggerFired
-from watchflow.core.workflow import Workflow
+from swatch.adapters.filesystem import FilesystemAdapter
+from swatch.core.events import BackpressureStrategy, Event, EventBus
+from swatch.core.triggers import GlobMatch, Trigger, TriggerEngine, TriggerFired
+from swatch.core.workflow import Workflow
 
 
 def make_event(path: str = "src/api.py", *, source: str = "filesystem") -> Event:

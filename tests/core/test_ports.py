@@ -1,6 +1,6 @@
 """Structural checks for the ``SourceAdapter`` port (skeleton, task 0.3)."""
 
-from watchflow.core.ports import SourceAdapter
+from swatch.core.ports import SourceAdapter
 
 
 def test_source_adapter_is_a_protocol() -> None:

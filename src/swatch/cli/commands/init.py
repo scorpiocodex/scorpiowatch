@@ -13,7 +13,7 @@ from typing import Annotated
 
 import typer
 
-from watchflow.cli.console import console, err_console
+from swatch.cli.console import console, err_console
 
 _CONFIG_FILENAME = "watchflow.toml"
 

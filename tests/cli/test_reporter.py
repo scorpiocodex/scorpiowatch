@@ -14,7 +14,7 @@ from uuid import uuid4
 
 from rich.console import Console
 
-from watchflow.cli.reporter import (
+from swatch.cli.reporter import (
     OutputMode,
     RunReporter,
     _failing_step,
@@ -22,9 +22,9 @@ from watchflow.cli.reporter import (
     _Liveness,
     _short_id,
 )
-from watchflow.core.config import WatchflowConfig
-from watchflow.core.scheduler import Run
-from watchflow.execution.executor import OutputChunk, RunResult, RunState, StepResult, StreamName
+from swatch.core.config import SwatchConfig
+from swatch.core.scheduler import Run
+from swatch.execution.executor import OutputChunk, RunResult, RunState, StepResult, StreamName
 
 
 def _buffer_console() -> tuple[Console, io.StringIO]:
@@ -184,10 +184,10 @@ def test_quiet_suppresses_success_lines_but_shows_failing_tail() -> None:
 
 
 def test_quiet_banner_is_suppressed_but_summary_prints() -> None:
-    from watchflow.core.config import WatchflowConfig
+    from swatch.core.config import SwatchConfig
 
     reporter, out, _ = _reporter(OutputMode.QUIET)
-    reporter.banner(WatchflowConfig(triggers=[]), object(), object(), once=True)  # type: ignore[arg-type]
+    reporter.banner(SwatchConfig(triggers=[]), object(), object(), once=True)  # type: ignore[arg-type]
     assert out.getvalue() == ""  # no banner in quiet
     reporter.summary((_run(state=RunState.SUCCEEDED),))
     assert "1 succeeded" in out.getvalue()
@@ -237,10 +237,10 @@ async def test_json_output_is_not_truncated_to_the_retention_cap() -> None:
 
 
 def test_json_banner_suppressed() -> None:
-    from watchflow.core.config import WatchflowConfig
+    from swatch.core.config import SwatchConfig
 
     reporter, out, _ = _reporter(OutputMode.JSON)
-    reporter.banner(WatchflowConfig(triggers=[]), object(), object(), once=False)  # type: ignore[arg-type]
+    reporter.banner(SwatchConfig(triggers=[]), object(), object(), once=False)  # type: ignore[arg-type]
     assert out.getvalue() == ""
 
 
@@ -301,7 +301,7 @@ async def test_liveness_schedules_and_cancels_reveal_on_a_terminal() -> None:
 def test_banner_default_shows_watching_when_continuous() -> None:
     reporter, out, _ = _reporter(OutputMode.DEFAULT)
     reporter.banner(
-        WatchflowConfig(triggers=[]), Path("proj"), Path("proj/watchflow.toml"), once=False
+        SwatchConfig(triggers=[]), Path("proj"), Path("proj/watchflow.toml"), once=False
     )
     text = out.getvalue()
     assert "engine starting" in text

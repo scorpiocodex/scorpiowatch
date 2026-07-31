@@ -7,8 +7,8 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from watchflow.core.events import Event
-from watchflow.core.triggers import (
+from swatch.core.events import Event
+from swatch.core.triggers import (
     CronExprMatch,
     GlobMatch,
     McpToolNameMatch,
@@ -16,7 +16,7 @@ from watchflow.core.triggers import (
     Trigger,
     TriggerEngine,
 )
-from watchflow.core.workflow import Workflow
+from swatch.core.workflow import Workflow
 
 
 def make_event(path: str | None = "src/api.py", *, source: str = "filesystem") -> Event:

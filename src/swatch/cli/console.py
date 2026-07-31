@@ -12,7 +12,7 @@ from rich.theme import Theme
 
 # Styles mirror the §2.1 palette: green success, red failure, orange/amber for change and
 # warning, blue run IDs, dim for secondary text.
-WATCHFLOW_THEME = Theme(
+SWATCH_THEME = Theme(
     {
         "success": "bold green",
         "failure": "bold red",
@@ -26,5 +26,5 @@ WATCHFLOW_THEME = Theme(
     }
 )
 
-console = Console(theme=WATCHFLOW_THEME)
-err_console = Console(theme=WATCHFLOW_THEME, stderr=True)
+console = Console(theme=SWATCH_THEME)
+err_console = Console(theme=SWATCH_THEME, stderr=True)

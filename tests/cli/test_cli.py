@@ -21,27 +21,27 @@ import pytest
 import typer
 from typer.testing import CliRunner
 
-import watchflow.cli.commands.run as run_cmd
-import watchflow.cli.main as main_mod
-from watchflow.cli.commands.run import _aggregate_exit, _exit_code, _resolve_mode, _ShutdownSignals
-from watchflow.cli.exit_codes import ExitCode
-from watchflow.cli.main import app
-from watchflow.cli.reporter import OutputMode
-from watchflow.core.config import WatchflowConfig
-from watchflow.core.events import Event
-from watchflow.core.scheduler import Run
-from watchflow.core.triggers import GlobMatch, Trigger
-from watchflow.core.workflow import Step, Workflow
-from watchflow.execution.executor import RunState
+import swatch.cli.commands.run as run_cmd
+import swatch.cli.main as main_mod
+from swatch.cli.commands.run import _aggregate_exit, _exit_code, _resolve_mode, _ShutdownSignals
+from swatch.cli.exit_codes import ExitCode
+from swatch.cli.main import app
+from swatch.cli.reporter import OutputMode
+from swatch.core.config import SwatchConfig
+from swatch.core.events import Event
+from swatch.core.scheduler import Run
+from swatch.core.triggers import GlobMatch, Trigger
+from swatch.core.workflow import Step, Workflow
+from swatch.execution.executor import RunState
 
 
-def _config() -> WatchflowConfig:
+def _config() -> SwatchConfig:
     """A one-trigger config for banner/summary rendering tests."""
     workflow = Workflow(name="wf", steps=[Step(name="s", command=["true"])])
     trigger = Trigger(
         name="t", source="filesystem", match=GlobMatch(pattern="**/*.py"), workflow=workflow
     )
-    return WatchflowConfig(triggers=[trigger])
+    return SwatchConfig(triggers=[trigger])
 
 
 runner = CliRunner()
@@ -145,7 +145,7 @@ def test_init_scaffolds_a_valid_config(tmp_path: Path) -> None:
 
 
 def test_init_scaffold_loads_back_as_valid_config(tmp_path: Path) -> None:
-    from watchflow.config.loader import load
+    from swatch.config.loader import load
 
     runner.invoke(app, ["init", str(tmp_path)])
     config = load(tmp_path / "watchflow.toml")
@@ -396,7 +396,7 @@ def test_init_scaffold_active_trigger_runs_on_a_change(
 
 
 def test_fullstack_example_config_loads_with_both_triggers() -> None:
-    from watchflow.config.loader import load
+    from swatch.config.loader import load
 
     config = load(Path("examples/fullstack/watchflow.toml"))
     # frontend expands over its 2 patterns, backend over 1 → 3 core triggers, two languages.
@@ -499,7 +499,7 @@ def test_real_sigint_drains_gracefully_and_exits_130(tmp_path: Path) -> None:
     command = [
         sys.executable,
         "-m",
-        "watchflow.cli.main",
+        "swatch.cli.main",
         "run",
         str(watchdir),
         "--config",

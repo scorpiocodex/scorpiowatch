@@ -15,12 +15,12 @@ from uuid import uuid4
 
 import pytest
 
-import watchflow.core.scheduler as scheduler_mod
-from watchflow.core.events import BackpressureStrategy, Event, EventBus
-from watchflow.core.scheduler import Run, Scheduler
-from watchflow.core.triggers import GlobMatch, Trigger, TriggerEngine, TriggerFired
-from watchflow.core.workflow import Step, Workflow
-from watchflow.execution.executor import RunContext, RunResult, RunState
+import swatch.core.scheduler as scheduler_mod
+from swatch.core.events import BackpressureStrategy, Event, EventBus
+from swatch.core.scheduler import Run, Scheduler
+from swatch.core.triggers import GlobMatch, Trigger, TriggerEngine, TriggerFired
+from swatch.core.workflow import Step, Workflow
+from swatch.execution.executor import RunContext, RunResult, RunState
 
 _HEARTBEAT_SRC = (
     "import sys, time\n"

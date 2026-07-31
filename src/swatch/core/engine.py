@@ -3,7 +3,7 @@
 See ``MODULE_SPECIFICATIONS.md`` §11. The Engine wires the core-layer components built in
 tasks 1.1-1.3 — the ``EventBus``, the ``TriggerEngine``, the ``Scheduler``, and (through it)
 the ``Executor`` — into one running instance, used identically by the CLI, an embedding host
-(``from watchflow import Engine``), and later the daemon. Source Adapters are **injected**
+(``from swatch import Engine``), and later the daemon. Source Adapters are **injected**
 rather than constructed here: the Engine lives in the Core layer and the ``FilesystemAdapter``
 lives in the Adapters layer, and the core imports nothing from ``adapters/`` (ADR-0010
 Option A). The Engine therefore depends only on the ``SourceAdapter`` port (``core/ports.py``)
@@ -35,12 +35,12 @@ from contextlib import suppress
 
 import structlog
 
-from watchflow.core.config import WatchflowConfig
-from watchflow.core.events import BackpressureStrategy, EventBus
-from watchflow.core.ports import SourceAdapter
-from watchflow.core.reporting import RunReporter
-from watchflow.core.scheduler import Run, Scheduler
-from watchflow.core.triggers import TriggerEngine, TriggerFired
+from swatch.core.config import SwatchConfig
+from swatch.core.events import BackpressureStrategy, EventBus
+from swatch.core.ports import SourceAdapter
+from swatch.core.reporting import RunReporter
+from swatch.core.scheduler import Run, Scheduler
+from swatch.core.triggers import TriggerEngine, TriggerFired
 
 _log = structlog.get_logger(__name__)
 
@@ -63,7 +63,7 @@ class EngineStartupError(RuntimeError):
 class Engine:
     """Assemble and run the WatchFlow pipeline from a validated configuration.
 
-    The single public embeddable entry point (``from watchflow import Engine``): it owns an
+    The single public embeddable entry point (``from swatch import Engine``): it owns an
     ``EventBus``, a ``TriggerEngine`` registered with ``config.triggers``, and a ``Scheduler``
     driving an ``Executor``, and it consumes injected ``SourceAdapter``s. :meth:`run` blocks
     until :meth:`shutdown` is requested; both are safe to call across the CLI's signal
@@ -72,7 +72,7 @@ class Engine:
 
     def __init__(
         self,
-        config: WatchflowConfig,
+        config: SwatchConfig,
         *,
         sources: Sequence[SourceAdapter] = (),
         max_parallel: int = 4,
@@ -87,7 +87,7 @@ class Engine:
                 core↔adapters layering). Empty yields an inert engine that matches nothing.
             max_parallel: Upper bound on concurrently-executing runs (Scheduler bound).
             bus_maxsize: Per-subscriber bound on the ``EventBus`` queues.
-            reporter: Optional :class:`~watchflow.core.reporting.RunReporter` the Scheduler
+            reporter: Optional :class:`~swatch.core.reporting.RunReporter` the Scheduler
                 narrates run lifecycle and subprocess output to (the CLI's output layer).
         """
         self._config = config

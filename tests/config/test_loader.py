@@ -10,9 +10,9 @@ from pathlib import Path
 
 import pytest
 
-from watchflow.config.loader import ConfigError, load
-from watchflow.core.config import WatchflowConfig
-from watchflow.core.triggers import GlobMatch
+from swatch.config.loader import ConfigError, load
+from swatch.core.config import SwatchConfig
+from swatch.core.triggers import GlobMatch
 
 
 def _write(tmp_path: Path, body: str, *, name: str = "watchflow.toml") -> Path:
@@ -31,7 +31,7 @@ def test_load_signature_matches_the_spec() -> None:
     sig = inspect.signature(load)
     assert list(sig.parameters) == ["path"]
     assert sig.parameters["path"].annotation is Path
-    assert sig.return_annotation is WatchflowConfig
+    assert sig.return_annotation is SwatchConfig
 
 
 # --------------------------------------------------------------------------- #

@@ -1,6 +1,6 @@
 """The ``run`` output layer: one projection of the engine's two voices, four ways.
 
-This is the single :class:`~watchflow.core.reporting.RunReporter` implementation the Scheduler
+This is the single :class:`~swatch.core.reporting.RunReporter` implementation the Scheduler
 narrates to. It separates the **engine voice** (lifecycle: a run started, a run finished with
 its state + duration) from the **subprocess voice** (the watched program's own stdout/stderr,
 streamed from the Executor via task-1.4 part 1), and renders both per the selected
@@ -34,11 +34,11 @@ from rich.console import Console
 from rich.markup import escape
 from rich.status import Status
 
-from watchflow.cli.console import console as _stdout_console
-from watchflow.cli.console import err_console as _stderr_console
-from watchflow.core.config import WatchflowConfig
-from watchflow.core.scheduler import Run
-from watchflow.execution.executor import OutputChunk, RunState, StepResult, StreamName
+from swatch.cli.console import console as _stdout_console
+from swatch.cli.console import err_console as _stderr_console
+from swatch.core.config import SwatchConfig
+from swatch.core.scheduler import Run
+from swatch.execution.executor import OutputChunk, RunState, StepResult, StreamName
 
 # States a step/run can end in that count as failure for the failing-tail policy.
 _FAILED_STATES = frozenset({RunState.FAILED, RunState.TIMED_OUT})
@@ -143,7 +143,7 @@ class RunReporter:
     """Render the Scheduler's run lifecycle and subprocess output per an :class:`OutputMode`.
 
     One instance per ``watchflow run`` invocation. Implements the
-    :class:`~watchflow.core.reporting.RunReporter` port structurally; the Scheduler calls it and
+    :class:`~swatch.core.reporting.RunReporter` port structurally; the Scheduler calls it and
     never learns which mode is active.
     """
 
@@ -171,7 +171,7 @@ class RunReporter:
 
     # -- Banner / summary (invoked directly by the run command) --------------- #
 
-    def banner(self, cfg: WatchflowConfig, path: Path, config_path: Path, *, once: bool) -> None:
+    def banner(self, cfg: SwatchConfig, path: Path, config_path: Path, *, once: bool) -> None:
         """Print the engine-starting banner, unless the mode is machine/verdict-only."""
         if self._mode in (OutputMode.JSON, OutputMode.QUIET):
             return

@@ -9,7 +9,7 @@ inward from here, and the core imports nothing from ``adapters/``. See
 from collections.abc import AsyncIterator
 from typing import Protocol
 
-from watchflow.core.events import Event
+from swatch.core.events import Event
 
 
 class SourceAdapter(Protocol):

@@ -52,7 +52,7 @@ dependencies = [
 
 [project.scripts]
 # The console entry point: `watchflow ...` runs the typer CLI (run / init in v0.1.0).
-watchflow = "watchflow.cli.main:main"
+watchflow = "swatch.cli.main:main"
 
 [project.optional-dependencies]
 # The eight extras enumerated in WATCHFLOW.md §1. Only the extras whose concrete
@@ -90,7 +90,7 @@ dev = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/watchflow"]
+packages = ["src/swatch"]
 
 [tool.ruff]
 # CODING_STANDARD.md §2 fixes line length at 100 columns.
@@ -127,7 +127,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.flake8-tidy-imports]
-# §2: absolute imports only within src/watchflow.
+# §2: absolute imports only within src/swatch.
 ban-relative-imports = "all"
 
 [tool.ruff.lint.flake8-tidy-imports.banned-api]
@@ -136,14 +136,14 @@ ban-relative-imports = "all"
 "asyncio.create_subprocess_shell".msg = "Use asyncio.create_subprocess_exec (shell=False) — CODING_STANDARD.md §6 / Constitution Article III."
 
 [tool.ruff.lint.isort]
-known-first-party = ["watchflow"]
+known-first-party = ["swatch"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
 
 [tool.ruff.lint.per-file-ignores]
 # §6 permits print() in the CLI layer only — scope the print ban out of cli/.
-"src/watchflow/cli/**" = ["T20"]
+"src/swatch/cli/**" = ["T20"]
 # Tests may use bare asserts (S101) and need no public-API docstrings.
 "tests/**" = ["S101", "D100", "D101", "D102", "D103", "D105"]
 
@@ -173,7 +173,7 @@ markers = [
 addopts = [
     "--strict-markers",
     "--strict-config",
-    "--cov=watchflow",
+    "--cov=swatch",
     "--cov-report=term-missing",
     "--cov-report=xml",
     "--cov-branch",              # §4: branch coverage, not just line
@@ -181,7 +181,7 @@ addopts = [
 ]
 
 [tool.coverage.run]
-source = ["watchflow"]
+source = ["swatch"]
 branch = true
 
 [tool.coverage.report]
@@ -232,12 +232,12 @@ allowed_prefixes = [
 # observability, which "may depend on each other" per PROJECT_STRUCTURE.md §2) use ":".
 # `exhaustive` guarantees every top-level package is placed in a layer — no future
 # package can silently escape the architecture.
-root_package = "watchflow"
+root_package = "swatch"
 
 [[tool.importlinter.contracts]]
 name = "WatchFlow layered architecture (ARCHITECTURE sec.2; ADR-0010 Option A; ADR-0012)"
 type = "layers"
-containers = ["watchflow"]
+containers = ["swatch"]
 layers = [
     "cli : tui",
     "plugins",

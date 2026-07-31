@@ -20,8 +20,8 @@ from typing import Annotated, Literal, cast
 
 from pydantic import BaseModel, Field
 
-from watchflow.core.events import Event, EventBus
-from watchflow.core.workflow import Workflow
+from swatch.core.events import Event, EventBus
+from swatch.core.workflow import Workflow
 
 
 @lru_cache(maxsize=512)

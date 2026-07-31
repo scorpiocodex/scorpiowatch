@@ -12,9 +12,9 @@ from contextlib import suppress
 
 import typer
 
-from watchflow.cli.commands.init import init
-from watchflow.cli.commands.run import run
-from watchflow.cli.exit_codes import ExitCode
+from swatch.cli.commands.init import init
+from swatch.cli.commands.run import run
+from swatch.cli.exit_codes import ExitCode
 
 # typer (0.27+) vendors click into ``typer._click`` and raises the vendored exceptions, not
 # the top-level ``click`` package's. ``typer.Abort`` is re-exported publicly (used below); the

@@ -7,7 +7,7 @@ from uuid import UUID, uuid4
 import pytest
 from pydantic import ValidationError
 
-from watchflow.core.events import Event
+from swatch.core.events import Event
 
 
 def make_event(**overrides: Any) -> Event:

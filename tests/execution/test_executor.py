@@ -16,8 +16,8 @@ from uuid import uuid4
 
 import pytest
 
-from watchflow.core.workflow import Step, Workflow
-from watchflow.execution.executor import (
+from swatch.core.workflow import Step, Workflow
+from swatch.execution.executor import (
     _MAX_RETAINED_CHARS,
     Executor,
     OutputChunk,

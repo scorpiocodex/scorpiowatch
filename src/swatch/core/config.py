@@ -1,26 +1,26 @@
-"""Core configuration domain model: ``WatchflowConfig``.
+"""Core configuration domain model: ``SwatchConfig``.
 
 Under ADR-0012 the domain models live in the core layer and ``config/`` is a pure
 loader, so the top-level validated configuration the Engine consumes is owned here,
 not in ``config/``. See ``MODULE_SPECIFICATIONS.md`` §10/§11.
 
-Filename note: the spec names the type ``WatchflowConfig`` but not a module for it, so
+Filename note: the spec names the type ``SwatchConfig`` but not a module for it, so
 ``core/config.py`` is the chosen home — a core-owned domain model, deliberately
-distinct from the ``watchflow.config`` loader package. The model is
-``watchflow.core.config.WatchflowConfig``; the loader is ``watchflow.config.loader.load``.
+distinct from the ``swatch.config`` loader package. The model is
+``swatch.core.config.SwatchConfig``; the loader is ``swatch.config.loader.load``.
 """
 
 from pydantic import BaseModel, Field
 
-from watchflow.core.triggers import Trigger
+from swatch.core.triggers import Trigger
 
 
-class WatchflowConfig(BaseModel):
+class SwatchConfig(BaseModel):
     """The top-level validated configuration parsed from ``watchflow.toml``.
 
     The domain aggregate the ``Engine`` consumes (``MODULE_SPECIFICATIONS.md`` §11) and
     the config loader returns (§10). Per ADR-0012 ``config/`` owns no models of its own:
-    :func:`watchflow.config.loader.load` reads the ergonomic ``watchflow.toml`` and *maps*
+    :func:`swatch.config.loader.load` reads the ergonomic ``watchflow.toml`` and *maps*
     it onto the core-owned models (``Trigger``/``Workflow``/``Step``), so this aggregate is
     simply the list of fully-built ``Trigger``s the loader produced — the mapping (plural
     ``patterns`` → per-pattern ``Trigger``s, default step ``kind``, supplied names) lives in

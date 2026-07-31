@@ -46,7 +46,7 @@ from uuid import UUID, uuid4
 import structlog
 from pydantic import BaseModel, ConfigDict, Field
 
-from watchflow.core.workflow import Step, Workflow
+from swatch.core.workflow import Step, Workflow
 
 _log = structlog.get_logger(__name__)
 

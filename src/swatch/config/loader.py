@@ -1,7 +1,7 @@
 """The ``watchflow.toml`` loader.
 
 Under ADR-0012 ``config/`` is a pure loader: it reads and validates configuration and
-returns the core-owned :class:`~watchflow.core.config.WatchflowConfig`. It defines no
+returns the core-owned :class:`~swatch.core.config.SwatchConfig`. It defines no
 domain models of its own — instead it *maps* the ergonomic TOML documented in
 ``WATCHFLOW.md`` §8 onto the core models (``Trigger`` / ``Workflow`` / ``Step``), which
 remain the single validation target. The dependency direction is one-way, ``config ->
@@ -37,9 +37,9 @@ from typing import Any
 
 from pydantic import ValidationError
 
-from watchflow.core.config import WatchflowConfig
-from watchflow.core.triggers import GlobMatch, Trigger
-from watchflow.core.workflow import Step, Workflow
+from swatch.core.config import SwatchConfig
+from swatch.core.triggers import GlobMatch, Trigger
+from swatch.core.workflow import Step, Workflow
 
 _DEFAULT_SOURCE = "filesystem"
 _SUBPROCESS_KIND = "subprocess"
@@ -74,8 +74,8 @@ class ConfigError(Exception):
         super().__init__(message)
 
 
-def load(path: Path) -> WatchflowConfig:
-    """Parse and validate a ``watchflow.toml`` into a :class:`WatchflowConfig`.
+def load(path: Path) -> SwatchConfig:
+    """Parse and validate a ``watchflow.toml`` into a :class:`SwatchConfig`.
 
     Reads ``path`` as TOML, maps every ``[[trigger]]`` onto the core ``Trigger`` /
     ``Workflow`` / ``Step`` models (see the module docstring for the mapping), and returns
@@ -97,7 +97,7 @@ def load(path: Path) -> WatchflowConfig:
     triggers: list[Trigger] = []
     for index, table in enumerate(_trigger_tables(raw, path)):
         triggers.extend(_build_triggers(table, index, path))
-    return WatchflowConfig(triggers=triggers)
+    return SwatchConfig(triggers=triggers)
 
 
 def _read_toml(path: Path) -> dict[str, Any]:
