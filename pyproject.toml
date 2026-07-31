@@ -97,9 +97,12 @@ packages = ["src/swatch"]
 line-length = 100
 target-version = "py312"
 src = ["src", "tests"]
-# docs/ and examples/ hold illustrative (often partial) code snippets, not project
-# source — ruff must not lint or reformat them.
-extend-exclude = ["docs", "examples"]
+# docs/, examples/, and demo/ hold illustrative code — partial snippets, runnable sample
+# configs, and the toy project the README's recorded demo runs against — not project
+# source. ruff must not lint or reformat them: demo/project/ in particular is read by
+# users in the README's animation, so it stays free of `noqa` chatter for rules (bare
+# asserts, docstring requirements) that exist to govern the engine, not a three-test toy.
+extend-exclude = ["demo", "docs", "examples"]
 
 [tool.ruff.lint]
 # Rule families chosen to mechanically enforce the CODING_STANDARD.md §2 conventions

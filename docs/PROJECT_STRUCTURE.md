@@ -110,6 +110,11 @@ swatch/
 │   ├── ROADMAP.md
 │   └── DECISION_LOG.md
 │
+├── demo/                            # The README's animated terminal demo
+│   ├── demo.tape                 # Charm VHS script — the recording, as code
+│   ├── demo.gif                  # Rendered clip embedded in README.md
+│   └── project/                  # Toy project the demo records a real `swatch run` against
+│
 ├── rfcs/                            # RFC process, active from Core Team governance stage
 │
 ├── Dockerfile                       # Official multi-arch image (GHCR, amd64+arm64), built on release tags — ADR-0011

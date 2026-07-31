@@ -1,0 +1,38 @@
+# swatch.toml - the config the README's animated demo records against.
+#
+# It is also a runnable example in its own right: the smallest useful ScorpioWatch setup,
+# a single trigger that reruns a test suite whenever a source file is saved.
+#
+#   uv run swatch run demo/project           # watch until you press Ctrl+C
+#   uv run swatch run demo/project --once    # one batch, then exit (what the GIF shows)
+#
+# Then edit demo/project/app.py in another terminal to see a Run fire.
+
+[[trigger]]
+name = "tests"
+source = "filesystem"
+# Every .py file under this directory. `**/` spans zero or more directories, so this matches
+# both `app.py` here and any future `pkg/thing.py`. Per-trigger cooldown is on by default, so
+# the burst of events one editor save produces collapses to a single Run.
+patterns = ["**/*.py"]
+
+  [trigger.workflow]
+  # `command` is an argv list run as a subprocess (shell=False) - never a shell string.
+  #
+  # `env_allowlist` is not decoration here, and it is worth understanding why. A Step's child
+  # process runs under a FULLY SCRUBBED environment by default - it inherits nothing from the
+  # parent (CODING_STANDARD.md 8 / SECURITY_MODEL.md). But the environment is also what the OS
+  # uses to FIND the program: with no `PATH`, POSIX falls back to `/bin:/usr/bin` and never
+  # sees the virtualenv, so a bare `pytest` is simply not found. On Windows the same scrubbing
+  # strips `SYSTEMROOT`, without which the interpreter cannot initialise its socket layer
+  # (WinError 10106) - so the step fails for a reason that looks nothing like its cause.
+  #
+  # Allowlisting these three is what makes `pytest` mean "the pytest belonging to whichever
+  # environment swatch itself was launched from", on every platform. Nothing else leaks
+  # through: no tokens, no credentials, no ambient configuration.
+  #
+  # `cwd` is left unset: it defaults to the watched root, so pytest collects the tests beside
+  # this config no matter which directory `swatch` itself was invoked from.
+  steps = [
+    { name = "pytest", command = ["pytest", "-q"], timeout_s = 60, env_allowlist = ["PATH", "PATHEXT", "SYSTEMROOT"] },
+  ]
