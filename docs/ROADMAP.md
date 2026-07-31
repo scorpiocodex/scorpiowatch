@@ -27,8 +27,8 @@ The ~10 h/week capacity is a **maintainer-owned assumption, not a measurement** 
 - `FilesystemAdapter` (Linux only), `ManualAdapter`
 - `TriggerEngine` with glob patterns, no scoring yet
 - `Executor`: a linear (single-branch) Workflow of `subprocess` Steps, `shell=False`, per-step opt-in `timeout_s` (default none), process-group teardown, and streamed-and-bounded output capture ([`EXECUTION_MODEL.md`](./EXECUTION_MODEL.md) §2/§6)
-- `Scheduler` **seam**: admits every fired Trigger's Workflow to the `Executor` and owns the `Run` lifecycle — the full `Scheduler` (dedupe, cooldown, rate limiting) remains v0.3.0
-- `watchflow run` and `watchflow init`
+- `Scheduler` **seam**: admits every fired Trigger's Workflow to the `Executor` and owns the `Run` lifecycle. **Cooldown was pulled forward here** from v0.3.0 — a leading-edge per-`(trigger, matched_path)` throttle, on by default, observable via `admission.suppressed` ([`MODULE_SPECIFICATIONS.md`](./MODULE_SPECIFICATIONS.md) §4). The rest of the full `Scheduler` (dedupe, rate limiting) remains v0.3.0.
+- `watchflow run` and a **language-neutral** `watchflow init` (a portable demo trigger plus commented Python / JS-TS / Rust / Go / full-stack examples)
 
 **v0.1.1** — bugfix: adapter not closing cleanly on SIGINT
 **v0.1.2** — bugfix: subprocess zombies on cancellation
@@ -45,7 +45,8 @@ The ~10 h/week capacity is a **maintainer-owned assumption, not a measurement** 
 **v0.2.2** — bugfix: macOS `FSEvents` missing initial scan
 
 **v0.3.0 — TriggerEngine + Scheduler (target: 10 effort-weeks ≈ month 10)**
-- `Scheduler` (rate limit, dedupe, cooldown)
+- `Scheduler` — rate limiting and dedupe (cooldown already shipped in v0.1.0)
+- **Debounce** — trailing-edge coalescing that waits out a spaced burst and runs once on the *settled* state. This is distinct from v0.1.0's leading-edge cooldown (run first, suppress the rest): debounce trades immediacy for running on the final state, and is the better fit for slow settle-then-run workflows.
 - Windows `FilesystemAdapter` support (`ReadDirectoryChangesW`)
 - `MCPTriggerAdapter` + minimal MCP server mode (`trigger_workflow` only)
 - `watchflow check` and `watchflow doctor`
@@ -69,6 +70,8 @@ The ~10 h/week capacity is a **maintainer-owned assumption, not a measurement** 
 **v1.0.2** — bugfix: `EventStore` migration on first run
 
 **v1.1.0 — Daemon, operability + container packaging (target: 21 effort-weeks ≈ month 21)**
+- **Per-trigger environment / toolchain resolution (front of this band).** Today every Step inherits the one environment WatchFlow runs under; a Step whose command is itself a toolchain launcher (e.g. `uv run`, `npm`) resolves against **WatchFlow's** environment, not the watched project's — WatchFlow's own `VIRTUAL_ENV` / `UV_*` vars can leak into and mislead the child. v1.1 gives each Trigger its own resolved environment/toolchain so a child runs in the project's context. The **full-stack / polyglot** use case ([`WATCHFLOW.md`](./WATCHFLOW.md) §3) raises its priority: a Node front end and a Python back end in one repo need per-trigger toolchains, not one inherited environment.
+- **Cooldown-map eviction under a long-lived daemon:** v0.1.0 uses lazy purge-on-access (a key touched once lingers until the next over-threshold admission). Revisit a periodic sweep now that the daemon runs for weeks (see [`MODULE_SPECIFICATIONS.md`](./MODULE_SPECIFICATIONS.md) §4).
 - `watchflow daemon` (systemd/launchd-managed), Unix socket / named pipe IPC, crash-only recovery reconciled against the `EventStore`
 - Per-component health endpoints (liveness/readiness), bind address configurable
 - Graceful shutdown on `SIGTERM`/`SIGINT` with a bounded drain window (see [`EXECUTION_MODEL.md`](./EXECUTION_MODEL.md) §7)

@@ -149,8 +149,11 @@ def test_init_scaffold_loads_back_as_valid_config(tmp_path: Path) -> None:
 
     runner.invoke(app, ["init", str(tmp_path)])
     config = load(tmp_path / "watchflow.toml")
+    # Only the one active, language-neutral trigger loads; the multi-stack examples below it
+    # are commented documentation, not active triggers.
     assert len(config.triggers) == 1
-    assert config.triggers[0].name == "run-tests"
+    assert config.triggers[0].name == "on-change"
+    assert config.triggers[0].match.pattern == "**/*"  # any file, no language assumption
 
 
 def test_init_refuses_to_overwrite_without_force(tmp_path: Path) -> None:
@@ -371,10 +374,35 @@ def test_run_relative_cwd_resolves_under_the_watched_root(
     assert Path(recorded.read_text(encoding="utf-8")).resolve() == (proj / "sub").resolve()
 
 
-def test_init_scaffold_documents_the_cwd_default(tmp_path: Path) -> None:
+def test_init_scaffold_is_language_neutral_and_documents_cwd(tmp_path: Path) -> None:
     runner.invoke(app, ["init", str(tmp_path)])
     written = (tmp_path / "watchflow.toml").read_text(encoding="utf-8")
-    assert 'cwd = "."' in written  # self-documenting: the step runs in the watched root
+    assert "language-agnostic" in written  # framing: the engine knows nothing about languages
+    # Breadth shown as commented examples across stacks, plus per-trigger cwd in the full-stack one.
+    for token in ("pytest", "npm", "cargo", "go-build", 'cwd = "frontend"'):
+        assert token in written
+
+
+def test_init_scaffold_active_trigger_runs_on_a_change(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # A fresh init + run does something visible on any project: the active trigger's portable
+    # command runs on a matching change through the real Engine/Scheduler/Executor.
+    runner.invoke(app, ["init", str(tmp_path)])
+    monkeypatch.setattr(run_cmd, "FilesystemAdapter", _OneShotSource)
+    result = runner.invoke(app, ["run", str(tmp_path), "--once"])
+    assert result.exit_code == int(ExitCode.SUCCESS)
+    assert "1 succeeded" in result.output  # the active trigger fired and its command ran
+
+
+def test_fullstack_example_config_loads_with_both_triggers() -> None:
+    from watchflow.config.loader import load
+
+    config = load(Path("examples/fullstack/watchflow.toml"))
+    # frontend expands over its 2 patterns, backend over 1 → 3 core triggers, two languages.
+    names = [t.name for t in config.triggers]
+    assert names == ["frontend", "frontend", "backend"]
+    assert {str(t.workflow.steps[0].cwd) for t in config.triggers} == {"frontend", "backend"}
 
 
 # --------------------------------------------------------------------------- #
