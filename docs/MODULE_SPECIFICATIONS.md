@@ -1,6 +1,6 @@
 # Module Specifications
 
-*Part of the WatchFlow documentation set — see [`WATCHFLOW.md`](./WATCHFLOW.md) for the full index. Corresponds to the boxes in [`ARCHITECTURE.md`](./ARCHITECTURE.md) and the files in [`PROJECT_STRUCTURE.md`](./PROJECT_STRUCTURE.md).*
+*Part of the ScorpioWatch documentation set — see [`SCORPIOWATCH.md`](./SCORPIOWATCH.md) for the full index. Corresponds to the boxes in [`ARCHITECTURE.md`](./ARCHITECTURE.md) and the files in [`PROJECT_STRUCTURE.md`](./PROJECT_STRUCTURE.md).*
 
 Each entry: purpose, public interface, invariants, and testing notes. Signatures are illustrative of the contract, not a final API freeze.
 
@@ -145,7 +145,7 @@ class MCPClientGateway:
     async def call_tool(self, server: str, tool: str, args: dict) -> MCPToolResult: ...
 ```
 
-**Purpose:** the dual-mode integration layer described in [`MCP_INTEGRATION.md`](./MCP_INTEGRATION.md) — server mode exposes WatchFlow actions to AI agents; client mode lets a `mcp_tool` Step call an external MCP tool.
+**Purpose:** the dual-mode integration layer described in [`MCP_INTEGRATION.md`](./MCP_INTEGRATION.md) — server mode exposes ScorpioWatch actions to AI agents; client mode lets a `mcp_tool` Step call an external MCP tool.
 
 **Invariants:** every inbound and outbound call is schema-validated before touching the Scheduler or DAGExecutor; every resulting `Run` carries `mcp_origin` provenance metadata into the `EventStore` (see [`SECURITY_MODEL.md`](./SECURITY_MODEL.md)).
 
@@ -161,7 +161,7 @@ class PluginHost:
     async def load(self, manifest: PluginManifest, grants: set[Capability]) -> Plugin: ...
 ```
 
-**Purpose:** discovers plugins via `watchflow.plugins` entry points, checks declared capabilities against user grants, and manages plugin lifecycle hooks.
+**Purpose:** discovers plugins via `swatch.plugins` entry points, checks declared capabilities against user grants, and manages plugin lifecycle hooks.
 
 **Invariants:** a plugin requesting an ungranted capability fails to load with an explicit, actionable error — never a silent partial load. Full contract: [`PLUGIN_SPECIFICATION.md`](./PLUGIN_SPECIFICATION.md).
 
@@ -178,10 +178,10 @@ Three independent exporters, all subscribing to the same internal observability 
 ## 10. `ConfigLoader` — `config/loader.py`
 
 ```python
-def load(path: Path) -> WatchflowConfig: ...
+def load(path: Path) -> SwatchConfig: ...
 ```
 
-**Purpose:** parses and validates `watchflow.toml` and returns the core-owned `WatchflowConfig` (defined in `core/config.py` — ADR-0012); `config/` is a pure loader that defines no models of its own. `WatchflowConfig` is the single source of truth for what a valid config looks like — the CLI's `watchflow check` command is a thin wrapper over this same loader.
+**Purpose:** parses and validates `swatch.toml` and returns the core-owned `SwatchConfig` (defined in `core/config.py` — ADR-0012); `config/` is a pure loader that defines no models of its own. `SwatchConfig` is the single source of truth for what a valid config looks like — the CLI's `swatch check` command is a thin wrapper over this same loader.
 
 **Invariants:** invalid config fails fast with a precise, field-level error message — never a partially-applied configuration.
 
@@ -193,9 +193,9 @@ def load(path: Path) -> WatchflowConfig: ...
 
 ```python
 class Engine:
-    def __init__(self, config: WatchflowConfig): ...
+    def __init__(self, config: SwatchConfig): ...
     async def run(self) -> None: ...
     async def shutdown(self) -> None: ...
 ```
 
-**Purpose:** the single public embeddable entry point (`from watchflow import Engine`) wiring every module above into one running instance — used identically by the CLI, the daemon, and any host process embedding WatchFlow directly.
+**Purpose:** the single public embeddable entry point (`from swatch import Engine`) wiring every module above into one running instance — used identically by the CLI, the daemon, and any host process embedding ScorpioWatch directly.

@@ -3,7 +3,7 @@
 Under ADR-0012 ``config/`` is a pure loader: it reads and validates configuration and
 returns the core-owned :class:`~swatch.core.config.SwatchConfig`. It defines no
 domain models of its own — instead it *maps* the ergonomic TOML documented in
-``WATCHFLOW.md`` §8 onto the core models (``Trigger`` / ``Workflow`` / ``Step``), which
+``SCORPIOWATCH.md`` §8 onto the core models (``Trigger`` / ``Workflow`` / ``Step``), which
 remain the single validation target. The dependency direction is one-way, ``config ->
 core`` (``MODULE_SPECIFICATIONS.md`` §10).
 

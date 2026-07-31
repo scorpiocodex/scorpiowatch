@@ -1,4 +1,4 @@
-"""The WatchFlow CLI application and its process entry point.
+"""The ScorpioWatch CLI application and its process entry point.
 
 Builds the ``typer`` app (``run`` + ``init`` — the v0.1.0 command surface per ``ROADMAP.md``;
 ``check``/``doctor``/``list``/``mcp``/… in ``UI_DESIGN.md`` §4.2 arrive in later versions) and

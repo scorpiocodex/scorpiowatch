@@ -1,22 +1,22 @@
 # Project Structure
 
-*Part of the WatchFlow documentation set — see [`WATCHFLOW.md`](./WATCHFLOW.md) for the full index. Implements the layering defined in [`ARCHITECTURE.md`](./ARCHITECTURE.md).*
+*Part of the ScorpioWatch documentation set — see [`SCORPIOWATCH.md`](./SCORPIOWATCH.md) for the full index. Implements the layering defined in [`ARCHITECTURE.md`](./ARCHITECTURE.md).*
 
 ---
 
 ## 1. Repository layout
 
 ```
-watchflow/
+swatch/
 ├── src/
-│   └── watchflow/
+│   └── swatch/
 │       ├── core/                  # Layer: Core — owns domain models + ports; no concrete platform/plugin imports
 │       │   ├── events.py          # Event envelope, EventBus
 │       │   ├── ports.py           # SourceAdapter Protocol (ADR-0010 Option A)
 │       │   ├── triggers.py        # Trigger model, TriggerEngine
 │       │   ├── scheduler.py       # Rate-limit, dedupe, cooldown, speculative exec
 │       │   ├── workflow.py        # Workflow, Step models
-│       │   ├── config.py          # WatchflowConfig model (ADR-0012)
+│       │   ├── config.py          # SwatchConfig model (ADR-0012)
 │       │   └── engine.py          # Engine — the public embeddable entry point
 │       │
 │       ├── execution/              # Layer: Core — DAG + step execution
@@ -28,8 +28,8 @@ watchflow/
 │       │   └── migrations/
 │       │
 │       ├── mcp/                     # Layer: Core — MCP Gateway (server + client)
-│       │   ├── server.py          # WatchFlow-as-MCP-server tool/resource surface
-│       │   ├── client.py          # WatchFlow-as-MCP-client step binding
+│       │   ├── server.py          # ScorpioWatch-as-MCP-server tool/resource surface
+│       │   ├── client.py          # ScorpioWatch-as-MCP-client step binding
 │       │   └── gateway.py         # Shared provenance, schema validation, rate limits
 │       │
 │       ├── observability/           # Layer: Core — always-on sidecar
@@ -61,10 +61,10 @@ watchflow/
 │       ├── tui/                      # Layer: Interface — optional extra: [tui]
 │       │   └── app.py              # textual application
 │       │
-│       └── config/                   # Layer: Config — pure loader; returns core-owned WatchflowConfig (ADR-0012)
-│           └── loader.py           # parse + validate watchflow.toml → core.config.WatchflowConfig
+│       └── config/                   # Layer: Config — pure loader; returns core-owned SwatchConfig (ADR-0012)
+│           └── loader.py           # parse + validate swatch.toml → core.config.SwatchConfig
 │
-├── tests/                          # Mirrors src/watchflow/ 1:1 (see §2)
+├── tests/                          # Mirrors src/swatch/ 1:1 (see §2)
 │   ├── core/
 │   ├── execution/
 │   ├── storage/
@@ -86,7 +86,7 @@ watchflow/
 │   ├── config/
 │   └── cross_platform/            # deliberate addition — no source counterpart (Linux/macOS/Windows adapter matrix)
 │
-├── examples/                       # Example watchflow.toml configs, one per use case
+├── examples/                       # Example swatch.toml configs, one per use case
 │   ├── local-dev/
 │   ├── ci-cd/
 │   ├── devops-daemon/          # daemon config + systemd/launchd units + container/K8s example (ADR-0011)
@@ -94,7 +94,7 @@ watchflow/
 │   └── mcp-agent/
 │
 ├── docs/                            # This documentation set
-│   ├── WATCHFLOW.md
+│   ├── SCORPIOWATCH.md
 │   ├── PROJECT_CONSTITUTION.md
 │   ├── ARCHITECTURE.md
 │   ├── ENGINEERING_PRINCIPLES.md
@@ -106,7 +106,7 @@ watchflow/
 │   ├── PLUGIN_SPECIFICATION.md
 │   ├── MCP_INTEGRATION.md
 │   ├── UI_DESIGN.md
-│   ├── watchflow_terminal_mockup_7_views.html   # TUI reference implementation (see UI_DESIGN.md §3.1)
+│   ├── scorpiowatch_terminal_mockup_7_views.html   # TUI reference implementation (see UI_DESIGN.md §3.1)
 │   ├── ROADMAP.md
 │   └── DECISION_LOG.md
 │
@@ -126,12 +126,12 @@ The `tests/` directories are created as their source counterparts are implemente
 
 Enforced by an import-linter contract in CI (see [`CODING_STANDARD.md`](./CODING_STANDARD.md)):
 
-- `core/`, `execution/`, `storage/`, `mcp/`, and `observability/` (the Core layer) may depend on each other and on nothing above them: the `SourceAdapter` Protocol they consume lives in `core/ports.py` (ADR-0010 Option A) and the domain models (`Trigger`, `Workflow`, `Step`, `WatchflowConfig`) live in `core/` (ADR-0012), so the Core layer imports nothing from `adapters/`, `config/`, `plugins/`, `cli/`, or `tui/`.
-- `config/` is a pure loader that imports the core-owned `WatchflowConfig` and returns it; the dependency is one-way, `config → core` (ADR-0012). It defines no domain models of its own.
+- `core/`, `execution/`, `storage/`, `mcp/`, and `observability/` (the Core layer) may depend on each other and on nothing above them: the `SourceAdapter` Protocol they consume lives in `core/ports.py` (ADR-0010 Option A) and the domain models (`Trigger`, `Workflow`, `Step`, `SwatchConfig`) live in `core/` (ADR-0012), so the Core layer imports nothing from `adapters/`, `config/`, `plugins/`, `cli/`, or `tui/`.
+- `config/` is a pure loader that imports the core-owned `SwatchConfig` and returns it; the dependency is one-way, `config → core` (ADR-0012). It defines no domain models of its own.
 - `adapters/*` (concrete implementations) may depend on `core/` — including the `SourceAdapter` Protocol in `core/ports.py` — but never the reverse.
 - `plugins/*` may depend on the stable plugin API surface only (re-exported from `core/`), never on internal core modules directly.
 - `cli/` and `tui/` may depend on everything below them, but nothing below depends on either.
-- `tests/` mirrors `src/watchflow/` exactly, one test module per source module minimum.
+- `tests/` mirrors `src/swatch/` exactly, one test module per source module minimum.
 
 ---
 
@@ -139,22 +139,22 @@ Enforced by an import-linter contract in CI (see [`CODING_STANDARD.md`](./CODING
 
 | Path | Purpose |
 |---|---|
-| `watchflow.toml` | Project-root configuration: Triggers, Workflows, adapters, MCP settings |
-| `.watchflow/events.db` | `aiosqlite`-backed EventStore (WAL mode) |
-| `.watchflow/plugins.lock` | Resolved plugin versions and granted capabilities |
-| `~/.config/watchflow/` | User-level defaults, applied before project config |
-| `.watchflow/daemon.sock` | Unix socket for daemon-mode IPC (named pipe on Windows) |
+| `swatch.toml` | Project-root configuration: Triggers, Workflows, adapters, MCP settings |
+| `.swatch/events.db` | `aiosqlite`-backed EventStore (WAL mode) |
+| `.swatch/plugins.lock` | Resolved plugin versions and granted capabilities |
+| `~/.config/swatch/` | User-level defaults, applied before project config |
+| `.swatch/daemon.sock` | Unix socket for daemon-mode IPC (named pipe on Windows) |
 
 ### Environment-variable configuration
 
-A container should not have to bake a `watchflow.toml` into its image to be configured, so every value in the `pydantic` config schema (`WatchflowConfig`, in `core/config.py` — ADR-0012) is also settable through the environment.
+A container should not have to bake a `swatch.toml` into its image to be configured, so every value in the `pydantic` config schema (`SwatchConfig`, in `core/config.py` — ADR-0012) is also settable through the environment.
 
-- **Naming convention:** `WATCHFLOW_` prefix, uppercased key, nested sections joined by a double underscore `__`. Examples: `WATCHFLOW_SCHEDULER__MAX_PARALLEL=8`, `WATCHFLOW_MCP__SERVER__ENABLED=true`, `WATCHFLOW_DAEMON__SHUTDOWN_GRACE_S=45`. Values are parsed and validated against the same schema as their TOML equivalents — an invalid environment value fails fast with the same field-level error a bad `watchflow.toml` would (see [`MODULE_SPECIFICATIONS.md`](./MODULE_SPECIFICATIONS.md) §10).
+- **Naming convention:** `SWATCH_` prefix, uppercased key, nested sections joined by a double underscore `__`. Examples: `SWATCH_SCHEDULER__MAX_PARALLEL=8`, `SWATCH_MCP__SERVER__ENABLED=true`, `SWATCH_DAEMON__SHUTDOWN_GRACE_S=45`. Values are parsed and validated against the same schema as their TOML equivalents — an invalid environment value fails fast with the same field-level error a bad `swatch.toml` would (see [`MODULE_SPECIFICATIONS.md`](./MODULE_SPECIFICATIONS.md) §10).
 - **Precedence (highest wins):**
   1. Explicit CLI flags
-  2. Environment variables (`WATCHFLOW_*`)
-  3. Project `watchflow.toml`
-  4. User-level defaults (`~/.config/watchflow/`)
+  2. Environment variables (`SWATCH_*`)
+  3. Project `swatch.toml`
+  4. User-level defaults (`~/.config/swatch/`)
   5. Built-in schema defaults
 
 Environment variables sit *above* both file layers precisely so a container or systemd unit can override any file-provided setting without editing a mounted file, while a developer's explicit CLI flag still wins over an inherited environment.
@@ -165,4 +165,4 @@ Environment variables sit *above* both file layers precisely so a container or s
 
 - One class per file for core abstractions (`triggers.py` defines `Trigger` and `TriggerEngine` together only because they're a tightly coupled pair — otherwise, split).
 - Adapter files are named after the event source they wrap (`filesystem.py`, not `fs_watcher_impl.py`).
-- Plugin packages are named `watchflow-<name>` on PyPI and live under `plugins/<name>/` in the first-party monorepo; third-party plugins live in their own repositories entirely.
+- Plugin packages are named `scorpiowatch-<name>` on PyPI and live under `plugins/<name>/` in the first-party monorepo; third-party plugins live in their own repositories entirely.

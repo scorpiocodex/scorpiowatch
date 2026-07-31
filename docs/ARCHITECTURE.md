@@ -1,6 +1,6 @@
 # Architecture
 
-*Part of the WatchFlow documentation set — see [`WATCHFLOW.md`](./WATCHFLOW.md) for the full index. Governed by [`PROJECT_CONSTITUTION.md`](./PROJECT_CONSTITUTION.md).*
+*Part of the ScorpioWatch documentation set — see [`SCORPIOWATCH.md`](./SCORPIOWATCH.md) for the full index. Governed by [`PROJECT_CONSTITUTION.md`](./PROJECT_CONSTITUTION.md).*
 
 ---
 
@@ -8,7 +8,7 @@
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────┐
-│                             WATCHFLOW ENGINE                             │
+│                           SCORPIOWATCH ENGINE                            │
 │                                                                          │
 │  Source Adapters                                                       │
 │  core: filesystem · cron · manual · mcp-trigger                        │
@@ -45,7 +45,7 @@ Every arrow is an `async` boundary. Every box is independently testable in isola
 
 ## 2. Layered view
 
-WatchFlow is organized in four layers, each permitted to depend only on the layers below it (enforced in CI — see [`CODING_STANDARD.md`](./CODING_STANDARD.md)):
+ScorpioWatch is organized in four layers, each permitted to depend only on the layers below it (enforced in CI — see [`CODING_STANDARD.md`](./CODING_STANDARD.md)):
 
 | Layer | Contains | Depends on |
 |---|---|---|
@@ -83,7 +83,7 @@ No component in this chain needed to know whether its caller was a human, a cron
 | Path handling | POSIX paths, case-sensitive | POSIX paths, case-insensitive by default | `pathlib.PureWindowsPath` normalization at adapter boundary |
 | Daemon mode | systemd unit | launchd plist | Windows Service wrapper (planned **v2.0.0** — see [`ROADMAP.md`](./ROADMAP.md)) |
 
-Daemon mode ships first on Linux (`systemd`) and macOS (`launchd`) in v1.1.0; the Windows Service wrapper follows in v2.0.0. The engine itself runs on Windows from v0.3.0 — only the OS-level service integration lags, not Trigger or Workflow behavior, so cross-platform parity (Article II) is unaffected: a foreground `watchflow run` behaves identically on Windows throughout.
+Daemon mode ships first on Linux (`systemd`) and macOS (`launchd`) in v1.1.0; the Windows Service wrapper follows in v2.0.0. The engine itself runs on Windows from v0.3.0 — only the OS-level service integration lags, not Trigger or Workflow behavior, so cross-platform parity (Article II) is unaffected: a foreground `swatch run` behaves identically on Windows throughout.
 
 Webhook, queue, cron, and MCP adapters are platform-neutral by construction — they never touch OS-specific file-watching APIs, so they need no per-platform code path at all.
 
@@ -91,13 +91,13 @@ Webhook, queue, cron, and MCP adapters are platform-neutral by construction — 
 
 ## 5. Deployment topologies
 
-WatchFlow is designed to run in five shapes without any code change to the core:
+ScorpioWatch is designed to run in five shapes without any code change to the core:
 
-1. **Ephemeral CLI run (local dev)** — `watchflow run .` in a repo, foreground, attached to a terminal, `--dry-run` and `--once` available for tight iteration.
-2. **Long-running daemon (DevOps / CI runner sidecar)** — `watchflow daemon`, systemd/launchd-managed, IPC over a Unix socket or named pipe, crash-only recovery backed by the `EventStore`.
-3. **Embedded library** — `from watchflow import Engine` inside another Python process; the engine runs in-process with no CLI or daemon involved.
-4. **MCP server process (AI-agent-facing)** — `watchflow mcp serve`, a long-lived process an AI agent's MCP client connects to, exposing a curated, permissioned subset of the engine's capabilities (see [`MCP_INTEGRATION.md`](./MCP_INTEGRATION.md)).
-5. **Container image (Docker / Kubernetes)** — the daemon topology packaged as an official multi-arch image (amd64 + arm64) published to GHCR. Configuration comes from environment variables rather than a baked-in TOML (see [`PROJECT_STRUCTURE.md`](./PROJECT_STRUCTURE.md) §3), the `.watchflow/` state directory is a mounted volume, and the per-component health endpoints back Kubernetes liveness/readiness probes. This is a *packaging* of topology 2, not a new engine mode — see ADR-0011 in [`DECISION_LOG.md`](./DECISION_LOG.md).
+1. **Ephemeral CLI run (local dev)** — `swatch run .` in a repo, foreground, attached to a terminal, `--dry-run` and `--once` available for tight iteration.
+2. **Long-running daemon (DevOps / CI runner sidecar)** — `swatch daemon`, systemd/launchd-managed, IPC over a Unix socket or named pipe, crash-only recovery backed by the `EventStore`.
+3. **Embedded library** — `from swatch import Engine` inside another Python process; the engine runs in-process with no CLI or daemon involved.
+4. **MCP server process (AI-agent-facing)** — `swatch mcp serve`, a long-lived process an AI agent's MCP client connects to, exposing a curated, permissioned subset of the engine's capabilities (see [`MCP_INTEGRATION.md`](./MCP_INTEGRATION.md)).
+5. **Container image (Docker / Kubernetes)** — the daemon topology packaged as an official multi-arch image (amd64 + arm64) published to GHCR. Configuration comes from environment variables rather than a baked-in TOML (see [`PROJECT_STRUCTURE.md`](./PROJECT_STRUCTURE.md) §3), the `.swatch/` state directory is a mounted volume, and the per-component health endpoints back Kubernetes liveness/readiness probes. This is a *packaging* of topology 2, not a new engine mode — see ADR-0011 in [`DECISION_LOG.md`](./DECISION_LOG.md).
 
 All five topologies share the same core engine binary and configuration format; they differ only in which Interface-layer entry point is used (topology 5 reuses topology 2's).
 

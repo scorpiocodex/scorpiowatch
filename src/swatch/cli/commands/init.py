@@ -5,7 +5,7 @@ unless ``--force`` is given. The scaffold is deliberately **language-neutral**: 
 trigger runs a trivial portable command on any file change, and the breadth of the engine — it
 runs *any* ``command`` (an argv list) on *any* glob-matched path, in any language or a mix — is
 shown through commented, ready-to-uncomment examples (Python, JS/TS, Rust, Go, and a two-language
-full-stack config). WatchFlow itself knows nothing about languages; the user supplies commands.
+full-stack config). ScorpioWatch itself knows nothing about languages; the user supplies commands.
 """
 
 from pathlib import Path
@@ -22,7 +22,7 @@ _CONFIG_FILENAME = "swatch.toml"
 # "subprocess" and the workflow/step names are supplied by the loader, so neither appears here.
 _SCAFFOLD = """\
 # swatch.toml - ScorpioWatch configuration
-# Docs: https://github.com/scorpiocodex/scorpiowatch/blob/main/docs/WATCHFLOW.md
+# Docs: https://github.com/scorpiocodex/scorpiowatch/blob/main/docs/SCORPIOWATCH.md
 #
 # ScorpioWatch watches files and runs commands when they change. It is language-agnostic: a
 # trigger matches paths by glob and runs any `command` (an argv list) as a subprocess - it

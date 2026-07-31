@@ -1,6 +1,6 @@
-# watchflow.toml - a two-language (full-stack / monorepo) example.
+# swatch.toml - a two-language (full-stack / monorepo) example.
 #
-# WatchFlow is language-agnostic: each trigger matches paths by glob and runs any `command`
+# ScorpioWatch is language-agnostic: each trigger matches paths by glob and runs any `command`
 # (an argv list) in its own `cwd`. Here a Node front end and a Python back end live in one
 # repo and one config - watched independently, each running its own toolchain's command.
 #
@@ -10,8 +10,8 @@
 # argv lists until a matching change actually runs them.
 #
 # Note (current sharp edge): you name each toolchain explicitly (`npm`, `pytest`) and scope it
-# with `cwd`. WatchFlow does not yet resolve a per-trigger environment, so a child inherits the
-# environment WatchFlow runs under; per-trigger environment/toolchain resolution is a v1.1
+# with `cwd`. ScorpioWatch does not yet resolve a per-trigger environment, so a child inherits the
+# environment ScorpioWatch runs under; per-trigger environment/toolchain resolution is a v1.1
 # operability item (see ../../docs/ROADMAP.md).
 
 [[trigger]]

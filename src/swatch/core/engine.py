@@ -61,7 +61,7 @@ class EngineStartupError(RuntimeError):
 
 
 class Engine:
-    """Assemble and run the WatchFlow pipeline from a validated configuration.
+    """Assemble and run the ScorpioWatch pipeline from a validated configuration.
 
     The single public embeddable entry point (``from swatch import Engine``): it owns an
     ``EventBus``, a ``TriggerEngine`` registered with ``config.triggers``, and a ``Scheduler``

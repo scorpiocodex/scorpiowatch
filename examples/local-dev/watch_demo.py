@@ -1,4 +1,4 @@
-"""Runnable demo of the WatchFlow ingestion slice.
+"""Runnable demo of the ScorpioWatch ingestion slice.
 
     FilesystemAdapter  ->  EventBus  ->  a subscriber that prints each Event
 

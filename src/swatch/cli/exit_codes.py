@@ -1,4 +1,4 @@
-"""Process exit codes for the WatchFlow CLI (``EXECUTION_MODEL.md`` §7.2).
+"""Process exit codes for the ScorpioWatch CLI (``EXECUTION_MODEL.md`` §7.2).
 
 §7.2 is the authority the task cites; it distinguishes a config error (``2``) from a usage
 error (``3``) and a startup/runtime error (``4``) — a finer split than the ``UI_DESIGN.md``

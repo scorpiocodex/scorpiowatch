@@ -1,6 +1,6 @@
 # Security Policy
 
-WatchFlow executes local commands in reaction to events that can, in several
+ScorpioWatch executes local commands in reaction to events that can, in several
 configurations, originate outside the machine it runs on. We take the security of
 that execution path seriously. This document describes how to report a
 vulnerability and what to expect in return.
@@ -10,7 +10,7 @@ guarantees, see [`docs/SECURITY_MODEL.md`](./docs/SECURITY_MODEL.md).
 
 ## Supported versions
 
-WatchFlow is in its pre-release band (`v0.1.0` → `v0.3.2`) and carries **no public
+ScorpioWatch is in its pre-release band (`v0.1.0` → `v0.3.2`) and carries **no public
 stability guarantees** yet (see [`docs/ROADMAP.md`](./docs/ROADMAP.md)). Security
 fixes are applied to the latest pre-release. Formal LTS support windows begin at
 `v1.0.0`.
@@ -41,8 +41,8 @@ with you, and credit you in the advisory unless you ask us not to.
 
 ## Scope
 
-In scope: the WatchFlow engine, core adapters, MCP gateway, and first-party
+In scope: the ScorpioWatch engine, core adapters, MCP gateway, and first-party
 plugins in this repository. Explicitly out of scope (per
 [`docs/SECURITY_MODEL.md`](./docs/SECURITY_MODEL.md) §1): protecting against a
 fully compromised host OS, or against a user with root/administrator access to the
-machine WatchFlow runs on.
+machine ScorpioWatch runs on.

@@ -1,8 +1,8 @@
 # Engineering Principles
 
-*Part of the WatchFlow documentation set — see [`WATCHFLOW.md`](./WATCHFLOW.md) for the full index.*
+*Part of the ScorpioWatch documentation set — see [`SCORPIOWATCH.md`](./SCORPIOWATCH.md) for the full index.*
 
-[`PROJECT_CONSTITUTION.md`](./PROJECT_CONSTITUTION.md) states *why* WatchFlow exists and what it will not trade away. This document states *how* those commitments show up in ordinary, daily engineering decisions — the reasoning a contributor should run through when the constitution doesn't spell out the specific situation in front of them.
+[`PROJECT_CONSTITUTION.md`](./PROJECT_CONSTITUTION.md) states *why* ScorpioWatch exists and what it will not trade away. This document states *how* those commitments show up in ordinary, daily engineering decisions — the reasoning a contributor should run through when the constitution doesn't spell out the specific situation in front of them.
 
 Where the constitution is law, this document is case law: rationale, contrast, and heuristics.
 
@@ -134,5 +134,5 @@ Coverage floor: **80%**, line and branch, enforced in CI (see [`CODING_STANDARD.
 ## 12. Anti-goals
 
 - **Premature abstraction.** Don't introduce a plugin interface for something that has exactly one implementation and no second one on the roadmap.
-- **Config sprawl.** Every new `watchflow.toml` key should be justifiable in one sentence; if it needs a paragraph, it probably needs a plugin instead.
+- **Config sprawl.** Every new `swatch.toml` key should be justifiable in one sentence; if it needs a paragraph, it probably needs a plugin instead.
 - **Silent magic.** Confidence scoring, dedupe, and cooldown are all inspectable and loggable at debug level — nothing in the matching or scheduling path should be a black box even to its own maintainers.

@@ -398,7 +398,7 @@ def test_init_scaffold_active_trigger_runs_on_a_change(
 def test_fullstack_example_config_loads_with_both_triggers() -> None:
     from swatch.config.loader import load
 
-    config = load(Path("examples/fullstack/watchflow.toml"))
+    config = load(Path("examples/fullstack/swatch.toml"))
     # frontend expands over its 2 patterns, backend over 1 → 3 core triggers, two languages.
     names = [t.name for t in config.triggers]
     assert names == ["frontend", "frontend", "backend"]

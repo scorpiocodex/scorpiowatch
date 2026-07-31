@@ -55,7 +55,7 @@ dependencies = [
 swatch = "swatch.cli.main:main"
 
 [project.optional-dependencies]
-# The eight extras enumerated in WATCHFLOW.md §1. Only the extras whose concrete
+# The eight extras enumerated in SCORPIOWATCH.md §1. Only the extras whose concrete
 # package is pinned in CODING_STANDARD.md §1 carry a dependency today; the rest are
 # declared as placeholders and populated when their feature/plugin lands (see ROADMAP).
 tui = ["textual>=0.60.0"]      # optional TUI (stack §1) — ships stable in v5.0.0
@@ -70,7 +70,7 @@ all = ["scorpiowatch[tui,otel,webhooks,queue,git,ci,mcp]"]
 [project.urls]
 Homepage = "https://github.com/scorpiocodex/scorpiowatch"
 Repository = "https://github.com/scorpiocodex/scorpiowatch"
-Documentation = "https://github.com/scorpiocodex/scorpiowatch/blob/main/docs/WATCHFLOW.md"
+Documentation = "https://github.com/scorpiocodex/scorpiowatch/blob/main/docs/SCORPIOWATCH.md"
 "Bug Tracker" = "https://github.com/scorpiocodex/scorpiowatch/issues"
 
 [dependency-groups]

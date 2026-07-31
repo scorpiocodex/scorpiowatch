@@ -1,6 +1,6 @@
 """Tests for the ``swatch.toml`` loader: TOML → core-model mapping and clean errors.
 
-The loader maps the ergonomic config (``WATCHFLOW.md`` §8) onto the real core models — so the
+The loader maps the ergonomic config (``SCORPIOWATCH.md`` §8) onto the real core models — so the
 assertions here are about the produced ``Trigger``/``Workflow``/``Step`` objects and about the
 precise ``ConfigError`` a bad config raises, never a partial config or a traceback.
 """

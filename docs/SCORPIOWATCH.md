@@ -1,4 +1,4 @@
-# WatchFlow — Event-Driven Workflow Orchestration Engine
+# ScorpioWatch — Event-Driven Workflow Orchestration Engine
 
 > React to anything. Orchestrate everything. From your laptop, to your CI pipeline, to your AI agents.
 
@@ -10,7 +10,7 @@ A cross-platform, event-driven workflow orchestration engine for **local develop
 
 1. Project identity
 2. What changed, and why
-3. What WatchFlow does
+3. What ScorpioWatch does
 4. Core concepts (glossary)
 5. Architecture at a glance
 6. Who it's for
@@ -24,38 +24,38 @@ A cross-platform, event-driven workflow orchestration engine for **local develop
 
 | Field | Value |
 |---|---|
-| **Name** | WatchFlow |
+| **Name** | ScorpioWatch |
 | **Tagline** | Cross-platform, event-driven workflow orchestration for local dev, CI/CD, DevOps automation, and MCP-powered AI systems |
 | **Type** | Open-source Python orchestration engine — CLI, embeddable library, MCP server/client, optional TUI |
 | **Author** | San Shibu (`ScorpioCodeX`) |
 | **License** | MIT |
 | **Language** | Python 3.12+ |
-| **Repository** | `github.com/scorpiocodex/watchflow` |
-| **Package** | `pip install watchflow` (extras: `[tui]`, `[otel]`, `[webhooks]`, `[queue]`, `[git]`, `[ci]`, `[mcp]`, `[all]`) |
+| **Repository** | `github.com/scorpiocodex/scorpiowatch` |
+| **Package** | `pip install scorpiowatch` (extras: `[tui]`, `[otel]`, `[webhooks]`, `[queue]`, `[git]`, `[ci]`, `[mcp]`, `[all]`) |
 | **Status** | Pre-release planning — scope just broadened, see [`ROADMAP.md`](./ROADMAP.md) |
 
 ---
 
 ## 2. What changed, and why
 
-WatchFlow began as a filesystem-only reactive automation engine: watch a directory, react to file changes, run a command. That version is still the seed of everything here — the async-first, safe-execution, event-driven discipline carries forward unchanged.
+ScorpioWatch began as a filesystem-only reactive automation engine: watch a directory, react to file changes, run a command. That version is still the seed of everything here — the async-first, safe-execution, event-driven discipline carries forward unchanged.
 
 What's changed is the boundary of "event." A file save is one kind of event. A cron tick, a webhook from a CI provider, a message on a queue, a git push, and — increasingly — a tool call from an AI agent over **MCP (Model Context Protocol)** are all the same shape of problem: *something happened, and the right work should run, safely, exactly once, with a durable record of what happened.*
 
-WatchFlow v1+ generalizes around that shape. It is no longer just a file watcher — it's an **event-driven workflow orchestration engine** that happens to ship with a filesystem adapter as one of several first-class event sources. The full reasoning behind this pivot, including the terminology changes it forced (`Intent` → `Trigger`, `Pipeline` → `Workflow`), is recorded as ADR-0003 in [`DECISION_LOG.md`](./DECISION_LOG.md).
+ScorpioWatch v1+ generalizes around that shape. It is no longer just a file watcher — it's an **event-driven workflow orchestration engine** that happens to ship with a filesystem adapter as one of several first-class event sources. The full reasoning behind this pivot, including the terminology changes it forced (`Intent` → `Trigger`, `Pipeline` → `Workflow`), is recorded as ADR-0003 in [`DECISION_LOG.md`](./DECISION_LOG.md).
 
 ---
 
-## 3. What WatchFlow does
+## 3. What ScorpioWatch does
 
-WatchFlow sits between *"something happened"* and *"the right work ran, safely, with a record of it"* — across four domains:
+ScorpioWatch sits between *"something happened"* and *"the right work ran, safely, with a record of it"* — across four domains:
 
 - **Local development** — rerun tests, linters, type checkers, and bundlers the instant a file changes, without polling, duplicate runs, or shell-injection risk.
 - **CI/CD** — a lightweight, self-hosted alternative or companion to heavyweight cloud pipelines, with sub-second reaction latency instead of seconds-to-minutes.
 - **DevOps automation** — react to config rewrites, certificate renewals, queue messages, and webhooks by running health checks, reloads, or notifications, as a long-lived, daemonizable service.
-- **MCP-powered AI systems** — act as the safe local execution substrate an AI agent reaches for instead of shelling out directly: an agent calls an MCP tool, WatchFlow runs the workflow with full dedupe, audit trail, and no `shell=True` anywhere in the path.
+- **MCP-powered AI systems** — act as the safe local execution substrate an AI agent reaches for instead of shelling out directly: an agent calls an MCP tool, ScorpioWatch runs the workflow with full dedupe, audit trail, and no `shell=True` anywhere in the path.
 
-**Language-agnostic by design.** A Trigger matches paths by glob and runs any `command` (an argv list) as a subprocess — the engine knows nothing about programming languages or toolchains. It runs your test runner, linter, build, deploy, or notifier in any language, or several at once. A polyglot **full-stack monorepo** is one config: watch `frontend/**` and run a Node command, watch `backend/**` and run a Python command, each in its own `cwd`. (Honest sharp edge for now: you name each toolchain explicitly in the command, and every Step inherits the one environment WatchFlow runs under; per-trigger environment/toolchain resolution — running each Trigger inside its own language's toolchain automatically — is a v1.1 operability item, see [`ROADMAP.md`](./ROADMAP.md).)
+**Language-agnostic by design.** A Trigger matches paths by glob and runs any `command` (an argv list) as a subprocess — the engine knows nothing about programming languages or toolchains. It runs your test runner, linter, build, deploy, or notifier in any language, or several at once. A polyglot **full-stack monorepo** is one config: watch `frontend/**` and run a Node command, watch `backend/**` and run a Python command, each in its own `cwd`. (Honest sharp edge for now: you name each toolchain explicitly in the command, and every Step inherits the one environment ScorpioWatch runs under; per-trigger environment/toolchain resolution — running each Trigger inside its own language's toolchain automatically — is a v1.1 operability item, see [`ROADMAP.md`](./ROADMAP.md).)
 
 The lifecycle of a single event, regardless of source:
 
@@ -84,7 +84,7 @@ Every stage is `async`. Every queue is bounded. Every subprocess uses `asyncio.c
 | **Workflow** | A named DAG of Steps. Replaces the legacy term "Pipeline"; a linear pipeline is just a single-branch Workflow |
 | **Step** | The atomic unit of execution inside a Workflow: `subprocess`, `plugin`, `http`, or `mcp_tool` |
 | **Run** | One execution instance of a Workflow, with a full lifecycle (`pending → running → succeeded/failed/skipped/cancelled`) |
-| **MCP Gateway** | The dual-mode integration layer: **server mode** exposes WatchFlow's own actions to AI agents as MCP tools; **client mode** lets a Workflow Step call an external MCP tool |
+| **MCP Gateway** | The dual-mode integration layer: **server mode** exposes ScorpioWatch's own actions to AI agents as MCP tools; **client mode** lets a Workflow Step call an external MCP tool |
 
 Full definitions and invariants live in [`MODULE_SPECIFICATIONS.md`](./MODULE_SPECIFICATIONS.md).
 
@@ -94,7 +94,7 @@ Full definitions and invariants live in [`MODULE_SPECIFICATIONS.md`](./MODULE_SP
 
 ```
 ┌────────────────────────────────────────────────────────────────────────┐
-│                            WATCHFLOW ENGINE                            │
+│                          SCORPIOWATCH ENGINE                           │
 │                                                                        │
 │  Source Adapters                                                      │
 │  core: filesystem · cron · manual · mcp-trigger                       │
@@ -136,7 +136,7 @@ Full architecture, deployment topologies, and cross-platform detail: [`ARCHITECT
 | **DevOps & SRE** | A daemon-capable, observable event reactor for webhooks, queues, and config drift — fits systemd, Docker, Kubernetes sidecars |
 | **Platform / CI engineers** | Sub-second local reaction loops that complement (not replace) cloud CI/CD |
 | **AI agent builders** | A safe, audited execution substrate reachable over MCP — agents trigger Workflows instead of shelling out |
-| **Tool builders** | An embeddable engine (`from watchflow import Engine`) for products that need their own reactive layer |
+| **Tool builders** | An embeddable engine (`from swatch import Engine`) for products that need their own reactive layer |
 | **Educators / learners** | A small, explicit, async-pure reference architecture |
 
 ---
@@ -156,7 +156,7 @@ This README is the front door. Everything else lives in its own focused document
 | [`MODULE_SPECIFICATIONS.md`](./MODULE_SPECIFICATIONS.md) | Per-module interfaces, invariants, and contracts |
 | [`EXECUTION_MODEL.md`](./EXECUTION_MODEL.md) | Run lifecycle, DAG semantics, concurrency, retries, execution contexts |
 | [`PLUGIN_SPECIFICATION.md`](./PLUGIN_SPECIFICATION.md) | Plugin types, hook contract, permissions, publishing, official plugin catalog |
-| [`MCP_INTEGRATION.md`](./MCP_INTEGRATION.md) | WatchFlow as MCP server and client, provenance, AI-safety controls |
+| [`MCP_INTEGRATION.md`](./MCP_INTEGRATION.md) | ScorpioWatch as MCP server and client, provenance, AI-safety controls |
 | [`UI_DESIGN.md`](./UI_DESIGN.md) | Shared design system, TUI panel-by-panel spec, CLI command reference and output conventions |
 | [`ROADMAP.md`](./ROADMAP.md) | Full version roadmap, release strategy, LTS bands |
 | [`DECISION_LOG.md`](./DECISION_LOG.md) | Architectural Decision Records — the "why" behind every major choice |
@@ -166,12 +166,12 @@ This README is the front door. Everything else lives in its own focused document
 ## 8. Quickstart
 
 ```bash
-pip install watchflow[all]
-watchflow init                 # scaffold watchflow.toml
-watchflow run .                # start the engine, headless
+pip install scorpiowatch[all]
+swatch init                 # scaffold swatch.toml
+swatch run .                # start the engine, headless
 ```
 
-`watchflow init` scaffolds a language-neutral starter (a demo trigger plus commented examples for Python, JS/TS, Rust, Go, and a two-language full-stack config). A Trigger runs any `command` on any glob-matched change — the config below shows two languages in one file, a Node front end and a Python back end, each in its own `cwd`:
+`swatch init` scaffolds a language-neutral starter (a demo trigger plus commented examples for Python, JS/TS, Rust, Go, and a two-language full-stack config). A Trigger runs any `command` on any glob-matched change — the config below shows two languages in one file, a Node front end and a Python back end, each in its own `cwd`:
 
 ```toml
 [[trigger]]
