@@ -19,7 +19,9 @@
 #   5. Ctrl+C                                 -> graceful drain, then the run tally
 #
 # Nothing else. Every export, temp copy, and the writer that stages the save lives in
-# demo/setup.sh, sourced below while the camera is off.
+# demo/setup.sh, sourced below while the camera is off — and the screen is cleared, on a
+# confirmed-idle shell, before recording resumes. See the Hidden setup block for why that
+# ordering is the entire trick.
 #
 # ── TIMING ──────────────────────────────────────────────────────────────────────────────
 # There is no timing race here to get wrong. The writer in setup.sh does not wait for a
@@ -55,17 +57,32 @@ Set WaitTimeout 120s
 Set Theme { "name": "ScorpioWatch", "background": "#0B0D12", "foreground": "#C8CCD4", "cursor": "#E8B847", "cursorAccent": "#0B0D12", "selection": "#1E2433", "black": "#0B0D12", "red": "#E24B4A", "green": "#5DCAA5", "yellow": "#EF9F27", "blue": "#85B7EB", "magenta": "#C89A30", "cyan": "#85B7EB", "white": "#C8CCD4", "brightBlack": "#5A5F69", "brightRed": "#E24B4A", "brightGreen": "#5DCAA5", "brightYellow": "#E8B847", "brightBlue": "#85B7EB", "brightMagenta": "#C89A30", "brightCyan": "#85B7EB", "brightWhite": "#FFFFFF" }
 
 # ── Hidden setup ────────────────────────────────────────────────────────────────────────
-# Two typed lines, both inside Hide, and the screen is cleared before Show — so the first
-# recorded frame is a bare prompt. setup.sh also ends with its own `clear`, which makes this
-# belt and braces: even if Hide failed outright, the most that could reach the GIF is the
-# single `source` line, erased a moment later.
+# `Hide` stops vhs CAPTURING frames. It does not stop the terminal from existing, so
+# whatever is left on screen when `Show` resumes IS recorded. Getting a clean opening frame
+# is therefore not about hiding the setup — it is about the screen being genuinely empty at
+# the moment Show happens.
+#
+# The previous version guessed that with `Sleep 3s`. When setup ran even slightly long, the
+# next keystroke arrived while the shell was still busy and readline never interpreted it:
+# `Ctrl+L` echoed as a literal `^L` rather than clearing, and Show fired over a screen still
+# showing the `source` line. That is a race, and it is why this now waits for a fact.
+#
+# setup.sh prints SWATCH_DEMO_READY as its final act, so this Wait cannot pass until every
+# statement in it has run. The `clear` that follows is therefore guaranteed to arrive at an
+# idle shell, where readline will interpret it rather than echo it. Nothing here waits for a
+# duration, so nothing here can be outrun by a slow machine.
+#
+# (Two options were checked first and are unavailable in vhs v0.11.0: `Set Shell "bash
+# --rcfile ..."` is rejected as an invalid shell, and while `Env HOME ...` is accepted, vhs
+# starts bash with rc files disabled — hence its bare `> ` default prompt — so no startup
+# file of any kind is read. There is no pre-record hook to run setup in.)
 Hide
 Type "source demo/setup.sh"
 Enter
-Sleep 3s
+Wait+Screen /SWATCH_DEMO_READY/
 Type "clear"
 Enter
-Sleep 500ms
+Sleep 1s
 Show
 
 # ── 1. Scaffold a config ────────────────────────────────────────────────────────────────

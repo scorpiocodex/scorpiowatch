@@ -99,10 +99,30 @@ toy project, the interpreter warm-ups, and above all the **writer that stages th
 change** — lives in [`setup.sh`](./setup.sh), which the tape sources inside a `Hide` block.
 
 That split is not cosmetic. A viewer who watched the save being scheduled would rightly
-conclude the demo was rigged, so the plumbing has to stay off camera. Routing it through one
-sourced script means the tape types exactly **two** lines while hidden — `source demo/setup.sh`
-and `clear` — and `setup.sh` ends with its own `clear` as well. Even if `Hide` failed outright,
-the worst a viewer could ever see is that `source` line, wiped a moment later.
+conclude the demo was rigged, so the plumbing has to stay off camera.
+
+> [!IMPORTANT]
+> `Hide` stops VHS **capturing frames**. It does not stop the terminal from existing, and
+> anything still on screen when `Show` resumes is recorded. A clean opening frame is therefore
+> not a question of hiding the setup — it is a question of the screen being genuinely empty at
+> the moment `Show` happens.
+
+That distinction caused a real bug. The tape used to allow `Sleep 3s` for `setup.sh` to finish
+and then send `Ctrl+L`. When setup ran even slightly long the keystroke arrived while the shell
+was still busy, so readline never interpreted it: `Ctrl+L` echoed as a literal `^L` instead of
+clearing, `Show` fired over a dirty screen, and the recording opened on `> source
+demo/setup.sh` followed by `^L`.
+
+The fix is to wait for a fact rather than a duration. `setup.sh` prints `SWATCH_DEMO_READY` as
+its final act; the tape blocks on `Wait+Screen /SWATCH_DEMO_READY/`, which cannot pass until
+every statement in the script has run. The `clear` it then types is guaranteed to arrive at an
+idle shell. Verified by injecting a deliberate 6-second delay into `setup.sh`: the opening frame
+stayed clean and the recorded clip did not change length.
+
+Two tidier approaches were checked first and do not exist in VHS v0.11.0. `Set Shell "bash
+--rcfile demo/setup.sh"` is rejected as an invalid shell. `Env HOME ...` is accepted, but VHS
+starts bash with rc files disabled — which is also why its default prompt is a bare `> ` — so
+no startup file is read and there is no pre-record hook to hang setup on.
 
 `setup.sh` is *sourced*, not executed, because its `export`s and its final `cd` have to land
 in the recording shell itself. For the same reason it deliberately does not use `set -e`: a
@@ -132,8 +152,8 @@ my-app ❯ swatch run .
   ✓ config loaded    swatch.toml  ·  1 triggers, 1 workflows
   watching .  ·  1 triggers armed  ·  ^C to stop
 
-  15:58:14  ·  tests  → started  r_7731
-  15:58:14  ·  tests  ✓ succeeded  0.0s
+  16:31:04  ·  tests  → started  r_edac
+  16:31:04  ·  tests  ✓ succeeded  0.0s
 ^C  draining… press Ctrl+C again to force
 
   processed 1 run(s): 1 succeeded, 0 failed, 0 cancelled

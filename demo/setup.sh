@@ -98,9 +98,21 @@ F="$WORK/my-app/app.py"
 ) >/dev/null 2>&1 &
 disown
 
-# ── Hand over a clean screen ────────────────────────────────────────────────────────────
-# The tape also types `clear` before `Show`, so this is belt and braces: even if Hide/Show
-# misbehaved, the most a viewer could ever see is the single `source demo/setup.sh` line,
-# wiped immediately.
+# ── Announce completion ─────────────────────────────────────────────────────────────────
+# This echo is the whole reason the recording starts clean, and it replaced a `clear` that
+# could not do the job.
+#
+# `Hide` stops vhs CAPTURING frames; it does not stop the terminal from existing. Anything
+# left on screen when `Show` resumes is recorded, so the screen has to be genuinely clean by
+# then — and clearing it here is not enough, because the tape has no way to know when this
+# script finished. It used to guess with `Sleep 3s`. When setup ran even slightly long, the
+# following keystroke arrived while the shell was still busy, so readline never interpreted
+# it: `Ctrl+L` echoed as a literal `^L` instead of clearing, `Show` fired over a dirty
+# screen, and the plumbing was recorded.
+#
+# So: print a sentinel instead. The tape blocks on `Wait+Screen /SWATCH_DEMO_READY/`, which
+# cannot be satisfied until this line is actually on screen — which is only true once every
+# statement above has run. The `clear` the tape then types is guaranteed to land on an idle
+# shell, where readline will interpret it. No duration is guessed anywhere.
 cd "$WORK/hello" || return
-clear
+echo SWATCH_DEMO_READY
