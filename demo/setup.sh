@@ -65,10 +65,27 @@ swatch --help >/dev/null 2>&1
 # took, how fast vhs types, or how slow the interpreter is to boot. The `seq` guard caps the
 # wait at 60s so a failed launch can never hang the render forever.
 #
-# The dwell has to clear engine boot: `swatch run` needs ~0.5-0.7s from exec to printing
-# `watching . · 1 triggers armed`, and a save landing before the watcher is armed is simply
-# missed. 2.8s leaves ~2s of margin and still lets the viewer read the banner before anything
-# moves.
+# ── Why the dwell is generous ───────────────────────────────────────────────────────────
+# A save that lands before the watcher is armed is not late — it is LOST, permanently, and
+# the recording then waits forever for a run that can never happen. That failure is silent
+# and total, so the dwell is sized for the worst case rather than the typical one.
+#
+# It is worth knowing exactly why the change vanishes. Under WSL, watchfiles auto-forces its
+# POLLING backend (`_default_force_polling` greps /proc/version for "microsoft"; there is no
+# inotify fd on the process at all). A poller takes a snapshot of the tree when it starts and
+# reports differences against it — so a write landing before that first snapshot is not a
+# change, it is just part of the baseline. No amount of later waiting recovers it.
+#
+# Measured exec -> `1 triggers armed`, in this WSL instance:
+#     warm            0.22s, 0.22s, 0.50s
+#     cold page cache 0.58s
+#     cold + 8 busy CPU loops (worst case attempted)    1.01s
+# 5s is that worst case plus a 4s margin — roughly 5x headroom. The cost is ~4s of the banner
+# sitting on screen before anything moves, which reads as deliberate rather than slow.
+#
+# Detection is not instant either, and the dwell is not what covers that: polling adds up to
+# `poll_delay_ms` (300ms) and the adapter then debounces for 400ms, so expect ~0.7s between
+# the write and `→ started`. That delay is after the save, so it costs nothing but patience.
 #
 # The save is ONE append, deliberately. It used to be two writes 200ms apart — nominally
 # inside the FilesystemAdapter's 400ms debounce, so they would coalesce into a single Run,
@@ -86,9 +103,20 @@ F="$WORK/my-app/app.py"
       sleep 0.1
     done
   else
-    sleep 7          # fallback: blind offset measured from the end of setup
+    # No pgrep: nothing to anchor to, so this must cover the ENTIRE visible sequence from
+    # here to the watcher arming. Budget, from this script backgrounding the writer:
+    #   to `Show`                                          3.9s   (worst case of the 4s Hide sleep)
+    #   Sleep 800ms + type `swatch init .` (13ch@50ms)     1.45s
+    #   Sleep 350ms + `swatch init` running                3.35s  (measured ~0.5s; 3s worst case)
+    #   Sleep 1500ms + type `cd ../my-app` (12ch@50ms)     2.10s
+    #   Sleep 300ms + Sleep 700ms                          1.00s
+    #   type `swatch run .` (12ch@50ms) + Sleep 350ms      0.95s
+    #   engine boot to armed                               2.00s  (measured 1.01s worst; doubled)
+    #                                                    -------
+    #                                                     14.75s  + 4s margin = 19s
+    sleep 19
   fi
-  sleep 2.8          # dwell — clears engine boot, banner stays readable
+  sleep 5            # dwell — see above: measured worst-case boot 1.01s + 4s margin
   echo >> "$F"
 ) >/dev/null 2>&1 &
 disown

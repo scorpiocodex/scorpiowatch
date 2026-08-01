@@ -78,7 +78,7 @@ From the **repository root** — the tape's paths are relative to it:
 vhs demo/demo.tape
 ```
 
-That writes `demo/demo.gif` (~13 s, 1200×700, ~100 KB). Rendering takes about 30 seconds.
+That writes `demo/demo.gif` (~15.5 s, 1200×700, ~100 KB). Rendering takes about 30 seconds.
 
 ### 5. Check and commit
 
@@ -133,8 +133,8 @@ my-app ❯ swatch run .
   ✓ config loaded    swatch.toml  ·  1 triggers, 1 workflows
   watching .  ·  1 triggers armed  ·  ^C to stop
 
-  13:47:54  ·  tests  → started  r_d6bf
-  13:47:54  ·  tests  ✓ succeeded  0.1s
+  15:23:56  ·  tests  → started  r_b295
+  15:23:56  ·  tests  ✓ succeeded  0.2s
 ^C  draining… press Ctrl+C again to force
 
   processed 1 run(s): 1 succeeded, 0 failed, 0 cancelled
@@ -152,14 +152,27 @@ tally.
 ### Timing, and why it does not drift
 
 The save is **not** fired at a guessed wall-clock offset. The writer in `setup.sh` blocks until
-the `swatch run` process actually exists, then dwells 2.8 s. So it stays correctly placed no
+the `swatch run` process actually exists, then dwells 5 s. So it stays correctly placed no
 matter how long setup took, how fast VHS types, or how slow the interpreter is to boot — the
 one thing a fixed offset cannot survive. A `seq` guard caps that wait at 60 s so a failed
 launch can never hang the render.
 
-The dwell has to clear engine boot: `swatch run` takes ~0.5–0.7 s from exec to printing
-`watching .`, and a save landing before the watcher is armed is simply missed. 2.8 s leaves
-about 2 s of margin and still lets the banner be read before anything moves.
+> [!IMPORTANT]
+> A save that lands **before** the watcher is armed is not late — it is lost, permanently, and
+> the recording then waits for a run that can never happen. Under WSL this is guaranteed rather
+> than likely: `watchfiles` auto-forces its **polling** backend (`_default_force_polling`
+> greps `/proc/version` for `microsoft`, and the process has no inotify fd at all). A poller
+> snapshots the tree when it starts and reports differences against that snapshot, so a write
+> arriving beforehand is baseline, not a change. Nothing later recovers it.
+
+The dwell is therefore sized for the worst case, not the typical one. Measured exec →
+`1 triggers armed` in WSL: 0.22 s / 0.22 s / 0.50 s warm, 0.58 s with the page cache dropped,
+and 1.01 s cold under eight busy CPU loops. 5 s is that worst case plus a 4 s margin — about
+5× headroom, at a cost of roughly 4 s of banner on screen before anything moves.
+
+Detection latency is separate and costs nothing: polling adds up to `poll_delay_ms` (300 ms)
+and the adapter debounces for 400 ms, so expect ~0.7 s between the write and `→ started`.
+Measured end to end, write → verdict on screen is ~0.37 s in practice.
 
 The save is a single append. It used to be two writes 200 ms apart — nominally inside the
 `FilesystemAdapter`'s 400 ms debounce, with the second as insurance against a not-yet-armed

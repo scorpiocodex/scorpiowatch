@@ -24,10 +24,15 @@
 #
 # ── TIMING ──────────────────────────────────────────────────────────────────────────────
 # The writer in setup.sh does NOT fire at a fixed wall-clock offset. It blocks until the
-# `swatch run` process exists, then dwells 2.8s. So the save is anchored to the engine
-# actually starting, and stays correctly placed regardless of how long setup took or how
-# fast vhs types. The `Wait+Screen` guards below then hold each beat until its output is
-# really on screen, so a slow machine stretches the clip rather than truncating it.
+# `swatch run` process exists, then dwells 5s. So the save is anchored to the engine actually
+# starting, and stays correctly placed regardless of how long setup took or how fast vhs
+# types. The `Wait+Screen` guards below then hold each beat until its output is really on
+# screen, so a slow machine stretches the clip rather than truncating it.
+#
+# The dwell is deliberately ~5x the measured worst-case engine boot (1.01s cold, under load).
+# A save landing before the watcher is armed is not late but LOST — under WSL the watcher
+# polls, and a write before its first snapshot is baseline, not a change — after which this
+# recording waits for a run that can never happen. Cheap insurance; see demo/setup.sh.
 #
 # ONE save, not two. A second save only earns its ~5s if the first run is quick, and it
 # made the recording fragile: the guard had to match two verdicts, so anything that delayed
@@ -50,7 +55,7 @@ Set WindowBar Colorful
 Set WindowBarSize 40
 Set Framerate 20
 Set TypingSpeed 50ms
-Set WaitTimeout 90s
+Set WaitTimeout 120s
 
 # The UI_DESIGN.md §2.1 palette mapped onto the 16 ANSI slots the CLI's rich.Theme uses:
 # green = success, red = failure, yellow = warning, blue = run IDs, brightYellow = the amber
