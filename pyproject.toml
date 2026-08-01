@@ -90,16 +90,28 @@ dev = [
 ]
 
 [tool.hatch.build.targets.wheel]
+# The wheel carries the import package and nothing else — demo/, docs/, and examples/ are
+# repository material, never installed.
 packages = ["src/swatch"]
+
+[tool.hatch.build.targets.sdist]
+# hatchling's sdist otherwise sweeps in every non-ignored path. demo/ is the README's
+# recording rig: a toy project plus a multi-megabyte rendered GIF that no installer, build,
+# or test of this distribution reads. The README embeds that GIF by absolute URL, so nothing
+# in the packaged long_description depends on it shipping either.
+exclude = ["/demo"]
 
 [tool.ruff]
 # CODING_STANDARD.md §2 fixes line length at 100 columns.
 line-length = 100
 target-version = "py312"
 src = ["src", "tests"]
-# docs/ and examples/ hold illustrative (often partial) code snippets, not project
-# source — ruff must not lint or reformat them.
-extend-exclude = ["docs", "examples"]
+# docs/, examples/, and demo/ hold illustrative code — partial snippets, runnable sample
+# configs, and the toy project the README's recorded demo runs against — not project
+# source. ruff must not lint or reformat them: demo/project/ in particular is read by
+# users in the README's animation, so it stays free of `noqa` chatter for rules (bare
+# asserts, docstring requirements) that exist to govern the engine, not a three-test toy.
+extend-exclude = ["demo", "docs", "examples"]
 
 [tool.ruff.lint]
 # Rule families chosen to mechanically enforce the CODING_STANDARD.md §2 conventions
