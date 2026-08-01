@@ -56,6 +56,9 @@ dmypy.json
 .import_linter_cache/
 htmlcov/
 
+# --- Local agent / tool config (never published; keeps it out of the sdist too) ---
+.claude/
+
 # --- IDE / editor ---
 .idea/
 .vscode/
