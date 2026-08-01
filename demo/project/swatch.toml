@@ -27,21 +27,22 @@ patterns = ["**/*.py"]
   # strips `SYSTEMROOT`, without which the interpreter cannot initialise its socket layer
   # (WinError 10106) - so the step fails for a reason that looks nothing like its cause.
   #
-  # Allowlisting the first three is what makes `pytest` mean "the pytest belonging to whichever
+  # Allowlisting these three is what makes `python` mean "the python belonging to whichever
   # environment swatch itself was launched from", on every platform. Nothing else leaks
   # through: no tokens, no credentials, no ambient configuration.
   #
-  # PYTEST_DISABLE_PLUGIN_AUTOLOAD is a speed knob, and purely optional. On every start pytest
-  # scans installed entry points and imports every plugin it finds - here that means asyncio,
-  # cov, anyio, and hypothesis, none of which three toy tests need. Skipping that scan roughly
-  # halves the run (~0.39s -> ~0.19s measured), which matters only because the README's
-  # recording wants the verdict to feel instant. Allowlisting it merely *permits* the variable
-  # through; if the parent environment does not set it, nothing breaks and the run is ~0.2s
-  # slower. Note this is entry-point *discovery*, not `-p no:...` on the command line, which
-  # blocks a plugin only after paying to find it (measured: no meaningful saving).
+  # Why a direct `python -c` and not `pytest`: this step exists to be *recorded*, and the
+  # README's clip wants the spinner-to-verdict beat to feel instant. Measured in the demo's
+  # environment, this command runs in ~0.03s against ~0.21s for `pytest -q` on the very same
+  # assertions - pytest spends the difference on collection and plugin discovery, which buys
+  # nothing for two asserts. It is still a real subprocess running real assertions against the
+  # real module: `app.py` is imported, and a broken `add` or `greet` turns the recorded Run red.
   #
-  # `cwd` is left unset: it defaults to the watched root, so pytest collects the tests beside
-  # this config no matter which directory `swatch` itself was invoked from.
+  # `test_app.py` and `pytest.ini` are kept beside this file so the toy remains a normal
+  # project you can `pytest` yourself; only the watched workflow takes the fast path.
+  #
+  # `cwd` is left unset: it defaults to the watched root, which is what puts `app.py` on
+  # `python -c`'s import path no matter which directory `swatch` itself was invoked from.
   steps = [
-    { name = "pytest", command = ["pytest", "-q"], timeout_s = 60, env_allowlist = ["PATH", "PATHEXT", "SYSTEMROOT", "PYTEST_DISABLE_PLUGIN_AUTOLOAD"] },
+    { name = "checks", command = ["python", "-c", "import app; assert app.add(2, 3) == 5; assert app.greet('demo') == 'hello, demo'; print('all checks passed')"], timeout_s = 60, env_allowlist = ["PATH", "PATHEXT", "SYSTEMROOT"] },
   ]

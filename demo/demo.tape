@@ -15,29 +15,21 @@
 #   1. `swatch init .` in an empty directory  -> scaffolds swatch.toml
 #   2. `cd` into the toy project
 #   3. `swatch run .`                         -> starts watching, continuously
-#   4. a simulated save fires a real pytest Run -> green verdict
+#   4. a simulated save fires a real Run      -> green verdict
 #   5. Ctrl+C                                 -> graceful drain, then the run tally
 #
-# Nothing else. Every export, temp copy, and the background writer that stages the save
-# lives in demo/setup.sh, sourced below while the camera is off — a viewer who saw the save
-# being scheduled would rightly conclude the demo was rigged.
+# Nothing else. Every export, temp copy, and the writer that stages the save lives in
+# demo/setup.sh, sourced below while the camera is off.
 #
 # ── TIMING ──────────────────────────────────────────────────────────────────────────────
-# The writer in setup.sh does NOT fire at a fixed wall-clock offset. It blocks until the
-# `swatch run` process exists, then dwells 5s. So the save is anchored to the engine actually
-# starting, and stays correctly placed regardless of how long setup took or how fast vhs
-# types. The `Wait+Screen` guards below then hold each beat until its output is really on
-# screen, so a slow machine stretches the clip rather than truncating it.
+# There is no timing race here to get wrong. The writer in setup.sh does not wait for a
+# DURATION before saving — it waits for the watcher's own backend thread to appear, which
+# happens exactly when watching begins. Nothing below can shift that: retype the commands,
+# change the sleeps, run it on a slower machine, and the save still lands after the watcher
+# is armed, because it is gated on the watcher rather than on the clock.
 #
-# The dwell is deliberately ~5x the measured worst-case engine boot (1.01s cold, under load).
-# A save landing before the watcher is armed is not late but LOST — under WSL the watcher
-# polls, and a write before its first snapshot is baseline, not a change — after which this
-# recording waits for a run that can never happen. Cheap insurance; see demo/setup.sh.
-#
-# ONE save, not two. A second save only earns its ~5s if the first run is quick, and it
-# made the recording fragile: the guard had to match two verdicts, so anything that delayed
-# or swallowed the second run failed the whole render rather than merely shortening it. The
-# loop is already legible from one run plus the `^C to stop` hint and the closing tally.
+# The `Wait+Screen` guards then hold each beat until its output is really on screen, so a
+# slow machine stretches the clip rather than truncating it.
 
 Output demo/demo.gif
 
@@ -63,13 +55,17 @@ Set WaitTimeout 120s
 Set Theme { "name": "ScorpioWatch", "background": "#0B0D12", "foreground": "#C8CCD4", "cursor": "#E8B847", "cursorAccent": "#0B0D12", "selection": "#1E2433", "black": "#0B0D12", "red": "#E24B4A", "green": "#5DCAA5", "yellow": "#EF9F27", "blue": "#85B7EB", "magenta": "#C89A30", "cyan": "#85B7EB", "white": "#C8CCD4", "brightBlack": "#5A5F69", "brightRed": "#E24B4A", "brightGreen": "#5DCAA5", "brightYellow": "#E8B847", "brightBlue": "#85B7EB", "brightMagenta": "#C89A30", "brightCyan": "#85B7EB", "brightWhite": "#FFFFFF" }
 
 # ── Hidden setup ────────────────────────────────────────────────────────────────────────
-# One line, and it clears the screen itself as its final act. That is the whole point of
-# routing setup through a script: even in the worst case — Hide failing outright — the most
-# that can reach the GIF is this single `source` line, erased a moment later.
+# Two typed lines, both inside Hide, and the screen is cleared before Show — so the first
+# recorded frame is a bare prompt. setup.sh also ends with its own `clear`, which makes this
+# belt and braces: even if Hide failed outright, the most that could reach the GIF is the
+# single `source` line, erased a moment later.
 Hide
 Type "source demo/setup.sh"
 Enter
-Sleep 4s
+Sleep 3s
+Type "clear"
+Enter
+Sleep 500ms
 Show
 
 # ── 1. Scaffold a config ────────────────────────────────────────────────────────────────
@@ -91,9 +87,13 @@ Type "swatch run ."
 Sleep 350ms
 Enter
 
-# ── 4. The save lands here and fires a real pytest Run ──────────────────────────────────
-# Held open until the verdict is genuinely on screen. A slow machine stretches this beat;
-# it cannot truncate it.
+# ── 4. The watcher arms, which is what releases the save ────────────────────────────────
+# Held until `1 triggers armed` is genuinely on screen. This guard is also the honest place
+# to fail: if the engine never arms, the recording stops here rather than waiting on a run
+# that was never going to happen.
+Wait+Screen /triggers armed/
+
+# The save fires now — gated on the watcher, not on this script. Hold for the verdict.
 Wait+Screen /succeeded/
 Sleep 1800ms
 
