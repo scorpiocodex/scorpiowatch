@@ -23,6 +23,11 @@ REPO="$PWD"
 # this same environment.
 export PATH="$REPO/.venv/bin:$REPO/.venv/Scripts:$PATH"
 
+# Skip pytest's entry-point scan in the recorded Run. The toy's swatch.toml allowlists this
+# variable through to the step; see the comment there for why it roughly halves the run. It is
+# an optimisation only — unset it and the demo still works, just a fraction slower.
+export PYTEST_DISABLE_PLUGIN_AUTOLOAD=1
+
 # ── Prompt ──────────────────────────────────────────────────────────────────────────────
 # A dim directory name plus an amber ❯ (the #E8B847 brand accent, via brightYellow).
 # PROMPT_COMMAND is unset first: a starship/oh-my-posh style prompt re-renders PS1 before
@@ -39,20 +44,40 @@ WORK="$(mktemp -d)"
 mkdir -p "$WORK/hello"
 cp -r "$REPO/demo/project" "$WORK/my-app"
 
-# Warm the interpreter so the first *recorded* command is not also paying import cost.
+# ── Warm-up ─────────────────────────────────────────────────────────────────────────────
+# Both interpreters that the recording depends on, primed off camera.
+#
+# `swatch --help` warms swatch's own imports, so the first recorded command is not also
+# paying start-up cost. The throwaway `pytest` run matters more, and for a subtler reason:
+# the RECORDED verdict prints a real measured duration, and a first-ever pytest in this tree
+# pays cold imports plus bytecode compilation of app.py/test_app.py (~0.95s cold vs ~0.39s
+# warm, measured). Running it once here means the number the viewer sees is the steady-state
+# cost of the tests, not a one-off cache miss. The run itself is genuine either way — this
+# only decides which of two honest numbers gets recorded.
 swatch --help >/dev/null 2>&1
+( cd "$WORK/my-app" && pytest -q ) >/dev/null 2>&1
 
-# ── The two simulated saves ─────────────────────────────────────────────────────────────
+# ── The simulated save ──────────────────────────────────────────────────────────────────
 # Started last, so its clock begins as close to the recording as possible.
 #
-# It does not fire at a guessed wall-clock offset. It waits for the `swatch run` process
-# to actually exist, then dwells — so the saves stay correctly placed no matter how long
-# setup took, how fast vhs types, or how slow the interpreter is to boot. The `seq` guard
-# caps the wait at 60s so a failed launch can never hang the render forever.
+# It does not fire at a guessed wall-clock offset. It waits for the `swatch run` process to
+# actually exist, then dwells — so the save stays correctly placed no matter how long setup
+# took, how fast vhs types, or how slow the interpreter is to boot. The `seq` guard caps the
+# wait at 60s so a failed launch can never hang the render forever.
 #
-# Each "save" is two writes 200ms apart: comfortably inside the FilesystemAdapter's 400ms
-# debounce, so they coalesce into a single Run, while giving the trigger two chances to be
-# caught if the watcher is still arming.
+# The dwell has to clear engine boot: `swatch run` needs ~0.5-0.7s from exec to printing
+# `watching . · 1 triggers armed`, and a save landing before the watcher is armed is simply
+# missed. 2.8s leaves ~2s of margin and still lets the viewer read the banner before anything
+# moves.
+#
+# The save is ONE append, deliberately. It used to be two writes 200ms apart — nominally
+# inside the FilesystemAdapter's 400ms debounce, so they would coalesce into a single Run,
+# with the second write as insurance in case the watcher was still arming. Under vhs that
+# insurance backfired: scheduling jitter occasionally pushed the two events onto opposite
+# sides of the debounce window and the clip recorded two Runs for one apparent save, which
+# reads as a bug. The pgrep gate plus the dwell below already guarantee the watcher is
+# armed, so the second write bought nothing and cost correctness. One write, one event,
+# one Run.
 F="$WORK/my-app/app.py"
 (
   if command -v pgrep >/dev/null 2>&1; then
@@ -63,10 +88,8 @@ F="$WORK/my-app/app.py"
   else
     sleep 7          # fallback: blind offset measured from the end of setup
   fi
-  sleep 3.0          # dwell — the banner stays on screen long enough to read
-  echo >> "$F"; sleep 0.2; echo >> "$F"      # save #1
-  sleep 4.2
-  echo >> "$F"; sleep 0.2; echo >> "$F"      # save #2
+  sleep 2.8          # dwell — clears engine boot, banner stays readable
+  echo >> "$F"
 ) >/dev/null 2>&1 &
 disown
 

@@ -16,19 +16,23 @@
 #   2. `cd` into the toy project
 #   3. `swatch run .`                         -> starts watching, continuously
 #   4. a simulated save fires a real pytest Run -> green verdict
-#   5. a second save fires another            -> proves it is a loop, not a one-shot
-#   6. Ctrl+C                                 -> graceful drain, then the run tally
+#   5. Ctrl+C                                 -> graceful drain, then the run tally
 #
-# Nothing else. Every export, temp copy, and the background writer that stages the two
-# saves lives in demo/setup.sh, sourced below while the camera is off — a viewer who saw
-# the saves being scheduled would rightly conclude the demo was rigged.
+# Nothing else. Every export, temp copy, and the background writer that stages the save
+# lives in demo/setup.sh, sourced below while the camera is off — a viewer who saw the save
+# being scheduled would rightly conclude the demo was rigged.
 #
 # ── TIMING ──────────────────────────────────────────────────────────────────────────────
 # The writer in setup.sh does NOT fire at a fixed wall-clock offset. It blocks until the
-# `swatch run` process exists, then dwells 3.0s before the first save and 4.2s before the
-# second. So the saves are anchored to the engine actually starting, and stay correctly
-# placed regardless of how long setup took or how fast vhs types. The `Wait+Screen` guards
-# below then hold each beat until its output is really on screen.
+# `swatch run` process exists, then dwells 2.8s. So the save is anchored to the engine
+# actually starting, and stays correctly placed regardless of how long setup took or how
+# fast vhs types. The `Wait+Screen` guards below then hold each beat until its output is
+# really on screen, so a slow machine stretches the clip rather than truncating it.
+#
+# ONE save, not two. A second save only earns its ~5s if the first run is quick, and it
+# made the recording fragile: the guard had to match two verdicts, so anything that delayed
+# or swallowed the second run failed the whole render rather than merely shortening it. The
+# loop is already legible from one run plus the `^C to stop` hint and the closing tally.
 
 Output demo/demo.gif
 
@@ -82,12 +86,13 @@ Type "swatch run ."
 Sleep 350ms
 Enter
 
-# ── 4 + 5. Two saves land here, ~4s apart, each firing a real pytest Run ────────────────
-# The regex needs TWO timestamped success lines, so it cannot be satisfied by the first.
-Wait+Screen /succeeded[\s\S]*succeeded/
-Sleep 1200ms
+# ── 4. The save lands here and fires a real pytest Run ──────────────────────────────────
+# Held open until the verdict is genuinely on screen. A slow machine stretches this beat;
+# it cannot truncate it.
+Wait+Screen /succeeded/
+Sleep 1800ms
 
-# ── 6. Graceful shutdown ────────────────────────────────────────────────────────────────
+# ── 5. Graceful shutdown ────────────────────────────────────────────────────────────────
 # One Ctrl+C drains in-flight Runs and prints the tally; a second would force-cancel.
 Ctrl+C
 Wait+Screen /processed/

@@ -11,9 +11,9 @@ the toy project it is recorded against.
 | `project/` | A three-test Python project. Real code, real tests, really run by `swatch` |
 
 Nothing here is mocked. The GIF is a recording of `swatch` actually watching `project/`,
-actually firing on two file changes, and actually running `pytest`. If the CLI's output
-changes, re-rendering the tape is what updates the README — there is no hand-written
-transcript to drift out of sync.
+actually firing on a file change, and actually running `pytest`. If the CLI's output changes,
+re-rendering the tape is what updates the README — there is no hand-written transcript to
+drift out of sync.
 
 ---
 
@@ -78,7 +78,7 @@ From the **repository root** — the tape's paths are relative to it:
 vhs demo/demo.tape
 ```
 
-That writes `demo/demo.gif` (~18 s, 1200×700, ~120 KB). Rendering takes well under a minute.
+That writes `demo/demo.gif` (~13 s, 1200×700, ~100 KB). Rendering takes about 30 seconds.
 
 ### 5. Check and commit
 
@@ -95,8 +95,8 @@ git commit -m "chore(demo): re-render demo.gif"
 ## Why setup lives in a separate script
 
 Everything the recording needs — the `PATH` and prompt exports, the throwaway copies of the
-toy project, the interpreter warm-up, and above all the **background writer that stages the
-two file changes** — lives in [`setup.sh`](./setup.sh), which the tape sources inside a `Hide`
+toy project, the interpreter warm-ups, and above all the **background writer that stages the
+file change** — lives in [`setup.sh`](./setup.sh), which the tape sources inside a `Hide`
 block.
 
 That split is not cosmetic. A viewer who watched the saves being scheduled would rightly
@@ -111,14 +111,13 @@ non-zero exit from any command would take the whole recording shell down with it
 
 ## What the recording shows
 
-Six beats, one continuous terminal session, no cuts:
+Five beats, one continuous terminal session, no cuts:
 
 1. **`swatch init .`** in an empty directory — scaffolds a `swatch.toml`.
 2. **`cd ../my-app`** — into a project that already has one (a throwaway copy of `project/`).
 3. **`swatch run .`** — the engine starts watching. No flags: the everyday form.
 4. A simulated save; the `tests` trigger matches, `pytest` runs, green verdict.
-5. A second save ~4 s later — proving this is a loop, not a one-shot.
-6. **`Ctrl+C`** — a graceful drain, then the run tally.
+5. **`Ctrl+C`** — a graceful drain, then the run tally.
 
 Transcribed from the rendered GIF:
 
@@ -134,27 +133,61 @@ my-app ❯ swatch run .
   ✓ config loaded    swatch.toml  ·  1 triggers, 1 workflows
   watching .  ·  1 triggers armed  ·  ^C to stop
 
-  10:21:59  ·  tests  → started  r_10c7
-  10:22:00  ·  tests  ✓ succeeded  0.8s
-  10:22:03  ·  tests  → started  r_72ad
-  10:22:04  ·  tests  ✓ succeeded  0.6s
+  13:47:54  ·  tests  → started  r_d6bf
+  13:47:54  ·  tests  ✓ succeeded  0.1s
 ^C  draining… press Ctrl+C again to force
 
-  processed 2 run(s): 2 succeeded, 0 failed, 0 cancelled
+  processed 1 run(s): 1 succeeded, 0 failed, 0 cancelled
 ```
+
+### One run, not two
+
+An earlier cut staged a second save to prove the watcher keeps going. It was not worth it. The
+tape's guard then had to match *two* verdicts, which made the render brittle in a bad
+direction: anything that delayed or swallowed the second run failed the whole recording rather
+than merely shortening it. Waiting on a single verdict means a slow machine stretches the clip
+instead of breaking it, and the loop is already legible from `^C to stop` and the closing
+tally.
 
 ### Timing, and why it does not drift
 
-The two saves are **not** fired at guessed wall-clock offsets. The writer in `setup.sh` blocks
-until the `swatch run` process actually exists, then dwells 3.0 s before the first save and
-4.2 s before the second. So the saves stay correctly placed no matter how long setup took, how
-fast VHS types, or how slow the interpreter is to boot — the one thing a fixed offset cannot
-survive. A `seq` guard caps that wait at 60 s so a failed launch can never hang the render.
+The save is **not** fired at a guessed wall-clock offset. The writer in `setup.sh` blocks until
+the `swatch run` process actually exists, then dwells 2.8 s. So it stays correctly placed no
+matter how long setup took, how fast VHS types, or how slow the interpreter is to boot — the
+one thing a fixed offset cannot survive. A `seq` guard caps that wait at 60 s so a failed
+launch can never hang the render.
 
-Each "save" is two writes 200 ms apart: inside the `FilesystemAdapter`'s 400 ms debounce, so
-they coalesce into a single Run, while giving the trigger two chances to be caught if the
-watcher is still arming. The tape's `Wait+Screen` guards then hold each beat until its output
-is really on screen, so a slow machine stretches the clip rather than truncating it.
+The dwell has to clear engine boot: `swatch run` takes ~0.5–0.7 s from exec to printing
+`watching .`, and a save landing before the watcher is armed is simply missed. 2.8 s leaves
+about 2 s of margin and still lets the banner be read before anything moves.
+
+The save is a single append. It used to be two writes 200 ms apart — nominally inside the
+`FilesystemAdapter`'s 400 ms debounce, with the second as insurance against a not-yet-armed
+watcher. Under VHS that insurance backfired: scheduling jitter occasionally pushed the two
+events onto opposite sides of the debounce window, and the clip recorded **two** Runs for one
+apparent save, which reads as a bug. The `pgrep` gate already guarantees the watcher is armed,
+so the second write bought nothing and cost correctness.
+
+The tape's `Wait+Screen` guards then hold each beat until its output is really on screen.
+
+### Why the recorded run reports 0.1 s
+
+The verdict prints a real measured duration, so the number is only as good as the conditions it
+was measured under. Two things in `setup.sh` make it the steady-state cost of the tests rather
+than a one-off:
+
+- **A throwaway `pytest` run before recording.** A first-ever pytest in a fresh tree pays cold
+  imports and bytecode compilation of `app.py`/`test_app.py` — ~0.95 s cold against ~0.39 s
+  warm, measured. Running it once off camera means the viewer sees the second number. The
+  recorded run is genuine either way; this only decides which of two honest numbers is shown.
+- **`PYTEST_DISABLE_PLUGIN_AUTOLOAD=1`**, exported in `setup.sh` and allowlisted through by
+  `project/swatch.toml`. On every start pytest scans installed entry points and imports every
+  plugin it finds — here asyncio, cov, anyio and hypothesis, none of which three toy tests
+  need. Skipping the scan roughly halves the run again (~0.39 s → ~0.19 s). Note this is
+  entry-point *discovery*: `-p no:...` on the command line blocks a plugin only after paying to
+  find it, and measured no meaningful saving.
+
+Neither is required. Drop both and the demo still works, with a larger number on screen.
 
 ### Two things the clip does *not* show, by design
 
