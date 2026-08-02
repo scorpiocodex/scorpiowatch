@@ -95,11 +95,17 @@ dev = [
 packages = ["src/swatch"]
 
 [tool.hatch.build.targets.sdist]
-# hatchling's sdist otherwise sweeps in every non-ignored path. demo/ is the README's
-# recording rig: a toy project plus a multi-megabyte rendered GIF that no installer, build,
-# or test of this distribution reads. The README embeds that GIF by absolute URL, so nothing
-# in the packaged long_description depends on it shipping either.
-exclude = ["/demo"]
+# hatchling's sdist otherwise sweeps in every non-ignored path, so the payload is named
+# explicitly here: the sdist carries pyproject.toml + README.md + LICENSE + src/ and nothing
+# else, matching the src-only wheel above.
+#
+# demo/ is the README's recording rig: a toy project plus a rendered GIF that no installer,
+# build, or test of this distribution reads. The README embeds that GIF by absolute URL, so
+# nothing in the packaged long_description depends on it shipping either. docs/ (including an
+# internal HTML mockup), examples/, rfcs/, and .github/ are repository material — they serve
+# contributors reading the repo, not anyone installing the package. tests/ are excluded on the
+# same grounds: they are run from a checkout via `uv run pytest`, never from an installed sdist.
+exclude = ["/demo", "/docs", "/examples", "/tests", "/rfcs", "/.github"]
 
 [tool.ruff]
 # CODING_STANDARD.md §2 fixes line length at 100 columns.

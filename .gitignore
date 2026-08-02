@@ -28,10 +28,15 @@ share/python-wheels/
 MANIFEST
 
 # --- Virtual environments ---
+# An in-repo venv under a non-standard name must be ignored or deleted, never committed:
+# hatchling's sdist sweeps every non-ignored path, and a venv's absolute symlinks make the
+# resulting tarball unpackable (a stray `activate/` — from a mistyped `source .venv/bin/activate`
+# — broke `uv build` outright until it was removed).
 .venv/
 venv/
 env/
 ENV/
+activate/
 .env
 .env.*
 
