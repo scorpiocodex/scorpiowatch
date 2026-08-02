@@ -9,6 +9,7 @@ The usage/config/abort exit-code remapping in ``main`` is exercised directly.
 import asyncio
 import json
 import os
+import shutil
 import signal
 import subprocess
 import sys
@@ -32,7 +33,7 @@ from swatch.core.events import Event
 from swatch.core.scheduler import Run
 from swatch.core.triggers import GlobMatch, Trigger
 from swatch.core.workflow import Step, Workflow
-from swatch.execution.executor import RunState
+from swatch.execution.executor import Executor, RunContext, RunState
 
 
 def _config() -> SwatchConfig:
@@ -387,12 +388,91 @@ def test_init_scaffold_active_trigger_runs_on_a_change(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     # A fresh init + run does something visible on any project: the active trigger's portable
-    # command runs on a matching change through the real Engine/Scheduler/Executor.
+    # command runs on a matching change through the real Engine/Scheduler/Executor. This is the
+    # end-to-end guard on the scaffold's `env_allowlist` (see the block below): on POSIX a
+    # scaffold without PATH cannot resolve its own interpreter and this run fails outright.
     runner.invoke(app, ["init", str(tmp_path)])
     monkeypatch.setattr(run_cmd, "FilesystemAdapter", _OneShotSource)
     result = runner.invoke(app, ["run", str(tmp_path), "--once"])
     assert result.exit_code == int(ExitCode.SUCCESS)
     assert "1 succeeded" in result.output  # the active trigger fired and its command ran
+
+
+# --------------------------------------------------------------------------- #
+# The scaffold's env_allowlist — the first-run contract.                       #
+# A Step's child starts from a *fully scrubbed* environment (`Executor.run_step`#
+# builds it from `env_allowlist` alone), so a scaffold that names nothing hands #
+# its subprocess an empty env. On POSIX the program lookup then falls back to   #
+# `os.defpath` (/bin:/usr/bin) and an interpreter in a venv, pyenv, or uv       #
+# install cannot be found: `swatch init && swatch run` — the very first thing a #
+# new user does — dies with "No such file or directory: 'python'". These pin    #
+# the starter allowlist that keeps that path working.                           #
+# --------------------------------------------------------------------------- #
+
+
+def _scaffold_steps(tmp_path: Path) -> list[Step]:
+    """Scaffold into ``tmp_path`` and return the active (non-commented) Steps it declares."""
+    from swatch.config.loader import load
+
+    runner.invoke(app, ["init", str(tmp_path)])
+    config = load(tmp_path / "swatch.toml")
+    return [step for trigger in config.triggers for step in trigger.workflow.steps]
+
+
+def _child_env(step: Step) -> dict[str, str]:
+    """Build the child environment exactly as ``Executor.run_step`` does."""
+    return {name: os.environ[name] for name in step.env_allowlist if name in os.environ}
+
+
+def test_init_scaffold_names_the_interpreter_lookup_vars(tmp_path: Path) -> None:
+    for step in _scaffold_steps(tmp_path):
+        # PATH is load-bearing on every platform; the Windows trio is simply absent (and so
+        # skipped) elsewhere, which is what lets one starter list work cross-platform.
+        assert "PATH" in step.env_allowlist
+        assert {"PATHEXT", "SYSTEMROOT", "SystemDrive"} <= set(step.env_allowlist)
+
+
+def test_scaffold_allowlist_delivers_path_to_a_real_child_process(tmp_path: Path) -> None:
+    # Falsifiable on every platform: with the pre-fix empty allowlist the child's environment
+    # is empty and it prints nothing.
+    (step,) = _scaffold_steps(tmp_path)
+    probe = Step(
+        name="probe",
+        command=[sys.executable, "-c", "import os; print(os.environ.get('PATH', ''))"],
+        env_allowlist=step.env_allowlist,
+    )
+    result = asyncio.run(Executor().run_step(probe, RunContext()))
+    assert result.state is RunState.SUCCEEDED
+    assert result.stdout.strip(), "the child process was handed no PATH"
+
+
+@pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="CreateProcess resolves the program from the parent's PATH, so the scrub cannot hide it",
+)
+def test_scaffold_command_resolves_under_the_scrubbed_child_env(tmp_path: Path) -> None:
+    # The reported blocker at its mechanism. POSIX looks the program up in
+    # `os.get_exec_path(child_env)`; with an empty allowlist that collapses to `os.defpath`.
+    (step,) = _scaffold_steps(tmp_path)
+    program = step.command[0]
+    if shutil.which(program) is None:
+        pytest.skip(f"{program!r} is not on this machine's PATH at all — a separate concern")
+    search_path = os.pathsep.join(os.get_exec_path(_child_env(step)))
+    assert shutil.which(program, path=search_path) is not None
+
+
+def test_example_configs_allowlist_path_for_every_step() -> None:
+    """The shipped examples must survive the environment scrub too, not just the scaffold."""
+    from swatch.config.loader import load
+
+    for example in (
+        Path("examples/local-dev/swatch.toml"),
+        Path("examples/fullstack/swatch.toml"),
+    ):
+        steps = [s for t in load(example).triggers for s in t.workflow.steps]
+        assert steps, f"{example} declares no steps"
+        for step in steps:
+            assert "PATH" in step.env_allowlist, f"{example}: step {step.name!r} loses its PATH"
 
 
 def test_fullstack_example_config_loads_with_both_triggers() -> None:
