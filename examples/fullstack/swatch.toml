@@ -9,10 +9,13 @@
 # yours. It loads and validates without those toolchains installed - `command` values are just
 # argv lists until a matching change actually runs them.
 #
-# Note (current sharp edge): you name each toolchain explicitly (`npm`, `pytest`) and scope it
-# with `cwd`. ScorpioWatch does not yet resolve a per-trigger environment, so a child inherits the
-# environment ScorpioWatch runs under; per-trigger environment/toolchain resolution is a v1.1
-# operability item (see ../../docs/ROADMAP.md).
+# Note (current sharp edge): you name each toolchain explicitly (`npm`, `pytest`), scope it with
+# `cwd`, and hand it an environment with `env_allowlist`. A step's child does NOT inherit the
+# environment ScorpioWatch runs under - it starts empty, and only the names a step lists reach it
+# (see ../../docs/SECURITY_MODEL.md §3). PATH is therefore mandatory for any real command: it is
+# what lets the OS find `npm` or `pytest` in the first place. Add whatever else the toolchain
+# expects - HOME for npm's and pip's caches, PATHEXT and SYSTEMROOT on Windows, NODE_ENV, and so
+# on. Per-trigger environment/toolchain resolution is a v1.1 operability item (see ROADMAP.md).
 
 [[trigger]]
 name = "frontend"
@@ -20,9 +23,13 @@ source = "filesystem"
 patterns = ["frontend/**/*.ts", "frontend/**/*.tsx"]
 
   [trigger.workflow]
-  steps = [
-    { name = "test", command = ["npm", "test"], cwd = "frontend", timeout_s = 300 },
-  ]
+
+  [[trigger.workflow.steps]]
+  name = "test"
+  command = ["npm", "test"]
+  cwd = "frontend"
+  timeout_s = 300
+  env_allowlist = ["PATH", "HOME", "PATHEXT", "SYSTEMROOT"]
 
 [[trigger]]
 name = "backend"
@@ -30,6 +37,10 @@ source = "filesystem"
 patterns = ["backend/**/*.py"]
 
   [trigger.workflow]
-  steps = [
-    { name = "test", command = ["pytest", "-q"], cwd = "backend", timeout_s = 300 },
-  ]
+
+  [[trigger.workflow.steps]]
+  name = "test"
+  command = ["pytest", "-q"]
+  cwd = "backend"
+  timeout_s = 300
+  env_allowlist = ["PATH", "HOME", "PATHEXT", "SYSTEMROOT"]

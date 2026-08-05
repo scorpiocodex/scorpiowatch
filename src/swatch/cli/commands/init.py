@@ -6,6 +6,13 @@ trigger runs a trivial portable command on any file change, and the breadth of t
 runs *any* ``command`` (an argv list) on *any* glob-matched path, in any language or a mix — is
 shown through commented, ready-to-uncomment examples (Python, JS/TS, Rust, Go, and a two-language
 full-stack config). ScorpioWatch itself knows nothing about languages; the user supplies commands.
+
+Every step in the scaffold — active and commented alike — carries an explicit ``env_allowlist``.
+That is not decoration: a Step's child process starts from a fully scrubbed environment
+(``Executor.run_step``), so without ``PATH`` the OS resolves the program against the system
+default path only and a venv/pyenv/uv interpreter cannot be found at all. A scaffold whose first
+run fails is worse than no scaffold, so the starter list ships with the config rather than being
+left as an exercise; the scrub-by-default posture itself (``SECURITY_MODEL.md`` §3) is unchanged.
 """
 
 from pathlib import Path
@@ -39,21 +46,33 @@ source = "filesystem"
 patterns = ["**/*"]
 
   [trigger.workflow]
+
   # `command` is an argv list run as a subprocess (shell=False), never a shell string. This
   # demo uses the Python that ships with ScorpioWatch as a portable "echo" - it is NOT a statement
   # that your project is Python. Swap in your real command: a test runner, linter, build,
   # deploy, notifier - anything.
-  steps = [
-    { command = ["python", "-c", "print('swatch: a file changed')"] },
-  ]
+  [[trigger.workflow.steps]]
+  command = ["python", "-c", "print('swatch: a file changed')"]
+  # A step's subprocess starts from an EMPTY environment: only the variables named here are
+  # forwarded, so nothing ambient (tokens, keys, credentials) leaks into it by default. PATH is
+  # what lets the child find its program at all - without it the lookup falls back to the system
+  # default path, and an interpreter living in a venv, pyenv, or uv install is invisible.
+  # PATHEXT/SYSTEMROOT/SystemDrive are the Windows counterparts; a name that does not exist on
+  # this platform is simply skipped, so one list works everywhere. Add what your own command
+  # needs (HOME, LANG, CI, a toolchain's cache dir) and nothing more.
+  env_allowlist = ["PATH", "PATHEXT", "SYSTEMROOT", "SystemDrive"]
 
 # --- Uncomment and adapt one for your stack --------------------------------------------------
+# Each carries its own `env_allowlist` for the same reason the active trigger does: without
+# PATH the step cannot find `pytest`, `npm`, `cargo`, or `go` at all. Add the extras your
+# toolchain expects - HOME for a cache directory, and on Windows PATHEXT and SYSTEMROOT.
+#
 # Python - run tests on a source change:
 # [[trigger]]
 # name = "python-tests"
 # patterns = ["**/*.py"]
 #   [trigger.workflow]
-#   steps = [{ command = ["pytest", "-q"], timeout_s = 120 }]
+#   steps = [{ command = ["pytest", "-q"], timeout_s = 120, env_allowlist = ["PATH"] }]
 #
 # JavaScript / TypeScript - typecheck then test:
 # [[trigger]]
@@ -61,8 +80,8 @@ patterns = ["**/*"]
 # patterns = ["**/*.ts", "**/*.tsx", "**/*.js"]
 #   [trigger.workflow]
 #   steps = [
-#     { command = ["npm", "run", "typecheck"], timeout_s = 120 },
-#     { command = ["npm", "test"], timeout_s = 300 },
+#     { command = ["npm", "run", "typecheck"], timeout_s = 120, env_allowlist = ["PATH"] },
+#     { command = ["npm", "test"], timeout_s = 300, env_allowlist = ["PATH"] },
 #   ]
 #
 # Rust - check on a source change:
@@ -70,14 +89,14 @@ patterns = ["**/*"]
 # name = "rust-check"
 # patterns = ["**/*.rs"]
 #   [trigger.workflow]
-#   steps = [{ command = ["cargo", "check"], timeout_s = 300 }]
+#   steps = [{ command = ["cargo", "check"], timeout_s = 300, env_allowlist = ["PATH"] }]
 #
 # Go - build and vet:
 # [[trigger]]
 # name = "go-build"
 # patterns = ["**/*.go"]
 #   [trigger.workflow]
-#   steps = [{ command = ["go", "build", "./..."], timeout_s = 180 }]
+#   steps = [{ command = ["go", "build", "./..."], timeout_s = 180, env_allowlist = ["PATH"] }]
 
 # --- Full-stack / monorepo: two languages in one config, each in its own `cwd` ----------------
 # A Node front end and a Python back end, side by side. Today you name each toolchain
@@ -86,13 +105,17 @@ patterns = ["**/*"]
 # name = "frontend"
 # patterns = ["frontend/**/*.ts", "frontend/**/*.tsx"]
 #   [trigger.workflow]
-#   steps = [{ command = ["npm", "test"], cwd = "frontend", timeout_s = 300 }]
+#   steps = [
+#     { command = ["npm", "test"], cwd = "frontend", timeout_s = 300, env_allowlist = ["PATH"] },
+#   ]
 #
 # [[trigger]]
 # name = "backend"
 # patterns = ["backend/**/*.py"]
 #   [trigger.workflow]
-#   steps = [{ command = ["pytest", "-q"], cwd = "backend", timeout_s = 300 }]
+#   steps = [
+#     { command = ["pytest", "-q"], cwd = "backend", timeout_s = 300, env_allowlist = ["PATH"] },
+#   ]
 """
 
 
