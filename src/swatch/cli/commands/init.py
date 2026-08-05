@@ -7,12 +7,22 @@ runs *any* ``command`` (an argv list) on *any* glob-matched path, in any languag
 shown through commented, ready-to-uncomment examples (Python, JS/TS, Rust, Go, and a two-language
 full-stack config). ScorpioWatch itself knows nothing about languages; the user supplies commands.
 
-Every step in the scaffold — active and commented alike — carries an explicit ``env_allowlist``.
-That is not decoration: a Step's child process starts from a fully scrubbed environment
-(``Executor.run_step``), so without ``PATH`` the OS resolves the program against the system
-default path only and a venv/pyenv/uv interpreter cannot be found at all. A scaffold whose first
-run fails is worse than no scaffold, so the starter list ships with the config rather than being
-left as an exercise; the scrub-by-default posture itself (``SECURITY_MODEL.md`` §3) is unchanged.
+Two properties keep that first run from failing on a fresh machine, and both are deliberate.
+
+**The demo command is ``swatch --version``** — ScorpioWatch's own CLI. The obvious choice, a
+throwaway ``python -c "print(...)"``, is not portable: stock Debian/Ubuntu ships ``python3`` and
+no bare ``python``, so a ``pipx``/``uv tool`` user's very first run died with
+``No such file or directory: 'python'``, while ``python3`` would fail the same way on Windows.
+The ``swatch`` executable is the one program a user who just ran ``swatch init`` provably has on
+their PATH, so the scaffold demonstrates "a change fired a run" without betting on an interpreter
+name — and without implying the watched project is a Python project.
+
+**Every step — active and commented alike — carries an explicit ``env_allowlist``.** A Step's
+child process starts from a fully scrubbed environment (``Executor.run_step``), so without
+``PATH`` the OS resolves the program against the system default path only, where neither
+``swatch`` nor a venv/pyenv/uv interpreter lives. A scaffold whose first run fails is worse than
+no scaffold, so the starter list ships with the config rather than being left as an exercise; the
+scrub-by-default posture itself (``SECURITY_MODEL.md`` §3) is unchanged.
 """
 
 from pathlib import Path
@@ -47,19 +57,21 @@ patterns = ["**/*"]
 
   [trigger.workflow]
 
-  # `command` is an argv list run as a subprocess (shell=False), never a shell string. This
-  # demo uses the Python that ships with ScorpioWatch as a portable "echo" - it is NOT a statement
-  # that your project is Python. Swap in your real command: a test runner, linter, build,
-  # deploy, notifier - anything.
+  # `command` is an argv list run as a subprocess (shell=False), never a shell string. The demo
+  # runs ScorpioWatch's own CLI as a self-contained "hello, it works": `swatch` is the one
+  # program you provably have (you just ran it to write this file), so this first run succeeds
+  # anywhere - no interpreter name to guess, no toolchain to install, and no implication that
+  # your project is Python. Swap in your real command: a test runner, linter, build, deploy,
+  # notifier - anything.
   [[trigger.workflow.steps]]
-  command = ["python", "-c", "print('swatch: a file changed')"]
+  command = ["swatch", "--version"]
   # A step's subprocess starts from an EMPTY environment: only the variables named here are
   # forwarded, so nothing ambient (tokens, keys, credentials) leaks into it by default. PATH is
   # what lets the child find its program at all - without it the lookup falls back to the system
-  # default path, and an interpreter living in a venv, pyenv, or uv install is invisible.
-  # PATHEXT/SYSTEMROOT/SystemDrive are the Windows counterparts; a name that does not exist on
-  # this platform is simply skipped, so one list works everywhere. Add what your own command
-  # needs (HOME, LANG, CI, a toolchain's cache dir) and nothing more.
+  # default path, where neither `swatch` nor an interpreter living in a venv, pyenv, or uv
+  # install can be found. PATHEXT/SYSTEMROOT/SystemDrive are the Windows counterparts; a name
+  # that does not exist on this platform is simply skipped, so one list works everywhere. Add
+  # what your own command needs (HOME, LANG, CI, a toolchain's cache dir) and nothing more.
   env_allowlist = ["PATH", "PATHEXT", "SYSTEMROOT", "SystemDrive"]
 
 # --- Uncomment and adapt one for your stack --------------------------------------------------
