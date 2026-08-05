@@ -109,7 +109,7 @@ jobs:
       contents: read
       id-token: write # OIDC — the whole point; without it trusted publishing cannot work.
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: dist
           path: dist/
@@ -134,7 +134,7 @@ jobs:
       contents: read
       id-token: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: dist
           path: dist/
