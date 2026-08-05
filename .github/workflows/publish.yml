@@ -1,0 +1,144 @@
+name: Publish
+
+# Builds the distribution and uploads it via PyPI **trusted publishing** (OIDC).
+#
+# No API token, password, or secret is stored or referenced anywhere in this file, and none
+# should ever be added: the `id-token: write` permission lets GitHub mint a short-lived OIDC
+# token that PyPI exchanges for an upload grant, which is what SECURITY_MODEL.md §"Supply
+# chain" commits to ("Publishing via PyPI Trusted Publisher — no long-lived API tokens in
+# CI"). The trust is anchored on the four values registered with the index — owner, repo,
+# this workflow's filename, and the GitHub environment name — so **this file must stay named
+# `publish.yml`** and the `environment:` names below must stay exactly `testpypi` and `pypi`.
+#
+# Two paths in:
+#   * `workflow_dispatch` — pick the index by hand. Defaults to TestPyPI so the dry run is
+#     the path of least resistance and shipping to the real index is always deliberate.
+#   * pushing a `v*` tag — the real release, always to PyPI.
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Index to publish to"
+        type: choice
+        options: [testpypi, pypi]
+        default: testpypi
+        required: true
+  push:
+    tags: ["v*"]
+
+# Read-only by default. The two publish jobs add `id-token: write` for themselves only.
+permissions:
+  contents: read
+
+# Never cancel an in-flight publish: a half-finished upload is worse than a queued one.
+concurrency:
+  group: publish-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  UV_PYTHON: "3.12" # Matches ci.yml; v0.1.0 targets Python 3.12+ (ROADMAP).
+  PYTHONUTF8: "1"
+
+jobs:
+  build:
+    name: build + validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Build sdist + wheel
+        run: uv build
+
+      - name: Verify the tag matches the packaged version
+        # Only meaningful on a tag push. Catches the classic release slip — tagging v0.2.0
+        # while pyproject.toml still says 0.1.0 — before anything reaches an index, where it
+        # could never be corrected (PyPI uploads are immutable).
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          pkg="$(uv version --short)"
+          echo "tag=$tag  pyproject=$pkg"
+          if [ "$tag" != "$pkg" ]; then
+            echo "::error::Tag v$tag does not match the packaged version $pkg."
+            exit 1
+          fi
+
+      - name: Require both artifacts
+        run: |
+          ls -l dist/
+          sdist=$(find dist -name '*.tar.gz' | wc -l)
+          wheel=$(find dist -name '*.whl' | wc -l)
+          echo "sdist=$sdist wheel=$wheel"
+          if [ "$sdist" -ne 1 ] || [ "$wheel" -ne 1 ]; then
+            echo "::error::Expected exactly one sdist and one wheel in dist/."
+            exit 1
+          fi
+
+      - name: twine check (metadata + README render)
+        # --strict promotes rendering warnings to failures: a long_description that will not
+        # render on the project page is a defect, not a warning.
+        run: uvx twine check --strict dist/*
+
+      - name: SHA-256 checksums
+        # ROADMAP.md "Release strategy" lists SHA256SUMS among the release artifacts. Emitted
+        # here and carried with the build artifact; attaching it to a signed GitHub Release
+        # (and the GPG/Sigstore signatures alongside it) is deferred — see the PR notes.
+        run: |
+          cd dist && sha256sum ./*.tar.gz ./*.whl | tee SHA256SUMS
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+          if-no-files-found: error
+
+  publish-testpypi:
+    name: publish → TestPyPI
+    needs: build
+    # Manual dry run only. A tag push never lands here — releases go to the real index.
+    if: github.event_name == 'workflow_dispatch' && inputs.target == 'testpypi'
+    runs-on: ubuntu-latest
+    environment:
+      name: testpypi # Must match the registered TestPyPI pending publisher.
+      url: https://test.pypi.org/project/scorpiowatch/
+    permissions:
+      contents: read
+      id-token: write # OIDC — the whole point; without it trusted publishing cannot work.
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - name: Drop the checksum file
+        # gh-action-pypi-publish uploads everything in the directory; SHA256SUMS is not a
+        # distribution and PyPI would reject it.
+        run: rm -f dist/SHA256SUMS
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+
+  publish-pypi:
+    name: publish → PyPI
+    needs: build
+    # The real release: any `v*` tag, or an explicit manual choice.
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.target == 'pypi')
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi # Must match the PyPI pending publisher (registered separately).
+      url: https://pypi.org/project/scorpiowatch/
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - name: Drop the checksum file
+        run: rm -f dist/SHA256SUMS
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        # No repository-url: the action defaults to https://upload.pypi.org/legacy/.
