@@ -15,6 +15,7 @@ import subprocess
 import sys
 import time
 from datetime import UTC, datetime
+from importlib.metadata import PackageNotFoundError
 from pathlib import Path
 from uuid import uuid4
 
@@ -132,6 +133,26 @@ def test_help_lists_run_and_init() -> None:
     assert "init" in result.output
 
 
+def test_version_flag_prints_the_installed_version() -> None:
+    # Eager and terminal: `--version` answers without a subcommand and exits 0.
+    result = runner.invoke(app, ["--version"])
+    assert result.exit_code == 0
+    assert result.output.startswith("swatch ")
+    assert main_mod._installed_version() in result.output
+
+
+def test_installed_version_falls_back_when_the_distribution_is_absent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Run from a source tree that was never installed there is no .dist-info to read; the flag
+    # must still answer rather than raising out of the CLI.
+    def _missing(name: str) -> str:
+        raise PackageNotFoundError(name)
+
+    monkeypatch.setattr(main_mod, "_distribution_version", _missing)
+    assert main_mod._installed_version() == "unknown"
+
+
 # --------------------------------------------------------------------------- #
 # swatch init                                                               #
 # --------------------------------------------------------------------------- #
@@ -222,6 +243,77 @@ def test_run_startup_failure_is_exit_4(tmp_path: Path, monkeypatch: pytest.Monke
     result = runner.invoke(app, ["run", str(tmp_path), "--config", str(config), "--once"])
     assert result.exit_code == int(ExitCode.STARTUP_ERROR)
     assert "startup error" in result.output
+
+
+# --------------------------------------------------------------------------- #
+# swatch run --once through the REAL FilesystemAdapter.                     #
+#                                                                              #
+# Every test above substitutes the event source, so the §7.2 `--once` exit-code #
+# contract — the one CI depends on — was only ever proven against a scripted    #
+# adapter. These two close that gap end to end: a real watcher, a real file     #
+# change, a real subprocess, and a real *process* exit status (the CLI is       #
+# spawned, so nothing about `main()`'s code mapping is taken on trust).         #
+# --------------------------------------------------------------------------- #
+
+
+def _run_once_through_the_real_watcher(
+    watchdir: Path, config: Path, logfile: Path, *, timeout_s: float = 60.0
+) -> tuple[int, str]:
+    """Run ``swatch run --once`` as a subprocess and feed it real changes until it exits.
+
+    Touching on a loop (rather than once, then sleeping) closes the arming race: the watch may
+    not yet be established when the first change lands, so changes keep coming until the
+    watcher picks one up and the ``--once`` batch drains.
+
+    Returns:
+        The process's exit status and its combined output.
+    """
+    command = [
+        *(sys.executable, "-m", "swatch.cli.main"),
+        *("run", str(watchdir), "--config", str(config), "--once"),
+    ]
+    env = {**os.environ, "PYTHONUNBUFFERED": "1"}
+    with logfile.open("wb") as sink:
+        proc = subprocess.Popen(command, stdout=sink, stderr=subprocess.STDOUT, env=env)
+        try:
+            deadline = time.monotonic() + timeout_s
+            tick = 0
+            while proc.poll() is None:
+                if time.monotonic() > deadline:
+                    raise AssertionError(
+                        "the watcher never processed a change"
+                        f"\n--- output ---\n{logfile.read_text(errors='replace')}"
+                    )
+                (watchdir / f"change-{tick}.py").write_text("x = 1\n", encoding="utf-8")
+                tick += 1
+                time.sleep(0.5)
+            returncode = proc.wait(timeout=15)
+        finally:
+            if proc.poll() is None:  # never leave a watcher behind if an assertion fired
+                proc.kill()
+                proc.wait(timeout=5)
+    return returncode, logfile.read_text(errors="replace")
+
+
+@pytest.mark.filesystem
+def test_run_once_real_watcher_failure_is_exit_1(tmp_path: Path) -> None:
+    watchdir = tmp_path / "watch"
+    watchdir.mkdir()
+    # The config lives outside the watched root, so writing it stirs no events of its own.
+    config = _write_config(tmp_path, [sys.executable, "-c", "raise SystemExit(1)"])
+    code, output = _run_once_through_the_real_watcher(watchdir, config, tmp_path / "run.log")
+    assert code == int(ExitCode.WORKFLOW_FAILURE), f"expected 1, got {code}\n{output}"
+    assert "failed" in output
+
+
+@pytest.mark.filesystem
+def test_run_once_real_watcher_success_is_exit_0(tmp_path: Path) -> None:
+    watchdir = tmp_path / "watch"
+    watchdir.mkdir()
+    config = _write_config(tmp_path, [sys.executable, "-c", "raise SystemExit(0)"])
+    code, output = _run_once_through_the_real_watcher(watchdir, config, tmp_path / "run.log")
+    assert code == int(ExitCode.SUCCESS), f"expected 0, got {code}\n{output}"
+    assert "succeeded" in output
 
 
 # --------------------------------------------------------------------------- #
@@ -389,13 +481,25 @@ def test_init_scaffold_active_trigger_runs_on_a_change(
 ) -> None:
     # A fresh init + run does something visible on any project: the active trigger's portable
     # command runs on a matching change through the real Engine/Scheduler/Executor. This is the
-    # end-to-end guard on the scaffold's `env_allowlist` (see the block below): on POSIX a
-    # scaffold without PATH cannot resolve its own interpreter and this run fails outright.
+    # end-to-end guard on both halves of the first-run contract — the scaffold's `env_allowlist`
+    # (see the block below; on POSIX a scaffold without PATH resolves no program at all) and its
+    # choice of demo command (an interpreter name would be missing on one platform or another).
     runner.invoke(app, ["init", str(tmp_path)])
     monkeypatch.setattr(run_cmd, "FilesystemAdapter", _OneShotSource)
     result = runner.invoke(app, ["run", str(tmp_path), "--once"])
     assert result.exit_code == int(ExitCode.SUCCESS)
     assert "1 succeeded" in result.output  # the active trigger fired and its command ran
+
+
+def test_init_scaffold_demo_command_is_the_swatch_cli_itself(tmp_path: Path) -> None:
+    # The portability half of the first-run contract. A demo step naming an interpreter cannot
+    # be written portably: stock Debian/Ubuntu ships `python3` and no bare `python` (so a
+    # pipx/uv-tool install died on `[Errno 2] No such file or directory: 'python'`), while
+    # `python3` is routinely absent — or a Store stub — on Windows. `swatch` is the one program
+    # a user who just ran `swatch init` provably has, so the scaffold uses it.
+    (step,) = _scaffold_steps(tmp_path)
+    assert step.command[0] == "swatch"
+    assert shutil.which("swatch") is not None, "the scaffold's demo command must resolve on PATH"
 
 
 # --------------------------------------------------------------------------- #

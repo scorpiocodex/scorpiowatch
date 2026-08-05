@@ -2,9 +2,9 @@
 #
 # ScorpioWatch watches files and runs commands on change. It is language-agnostic: a trigger
 # matches paths by glob and runs any `command` (an argv list) - it knows nothing about
-# languages. The active trigger below runs on ANY file change using a trivial portable command
-# (the Python that ships with ScorpioWatch, used here purely as a cross-platform "echo"), so it
-# works on any project without a toolchain. Try it:
+# languages. The active trigger below runs on ANY file change using ScorpioWatch's own CLI as a
+# trivial, always-available command, so it works on any project without a toolchain installed -
+# and without assuming which interpreter names exist on your machine. Try it:
 #
 #   cd examples/local-dev
 #   uv run swatch run . --config swatch.toml
@@ -29,11 +29,11 @@ patterns = ["**/*"]
   # it with your project's real command, in any language.
   [[trigger.workflow.steps]]
   name = "announce"
-  command = ["python", "-c", "print('swatch: a file changed')"]
+  command = ["swatch", "--version"]
   # A step's subprocess starts from an EMPTY environment: only the names listed here are
   # forwarded, so nothing ambient (tokens, keys) leaks into it. PATH is what lets the child find
-  # its program at all - drop it and this step fails with "No such file or directory: 'python'"
-  # wherever the interpreter lives outside the system default path (a venv, pyenv, or uv
-  # install). PATHEXT/SYSTEMROOT/SystemDrive are the Windows counterparts; names absent on this
-  # platform are skipped, so one list works everywhere.
+  # its program at all - drop it and this step fails with "No such file or directory: 'swatch'",
+  # because the system default path is not where pipx, uv, or a venv put an installed CLI.
+  # PATHEXT/SYSTEMROOT/SystemDrive are the Windows counterparts; names absent on this platform
+  # are skipped, so one list works everywhere.
   env_allowlist = ["PATH", "PATHEXT", "SYSTEMROOT", "SystemDrive"]

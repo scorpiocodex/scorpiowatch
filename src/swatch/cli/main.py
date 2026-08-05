@@ -5,16 +5,28 @@ Builds the ``typer`` app (``run`` + ``init`` — the v0.1.0 command surface per 
 maps its outcome to the ``EXECUTION_MODEL.md`` §7.2 exit codes. ``main`` runs the app in
 ``click``'s non-standalone mode so it owns the codes: in particular it remaps the default
 usage-error code (``2``) to ``3``, keeping ``2`` reserved for config errors as §7.2 requires.
+
+The app also carries the one root-level flag, ``--version``. Besides being the affordance every
+installed CLI is expected to answer, it is the scaffold's demo command: ``swatch init`` writes a
+step that runs ``swatch --version``, because the ``swatch`` executable is the one program a user
+who just ran ``swatch init`` is guaranteed to have on their PATH (see ``commands/init.py``).
 """
 
 import sys
 from contextlib import suppress
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as _distribution_version
+from typing import Annotated
 
 import typer
 
 from swatch.cli.commands.init import init
 from swatch.cli.commands.run import run
+from swatch.cli.console import console
 from swatch.cli.exit_codes import ExitCode
+
+# The PyPI distribution name (the import package is ``swatch``; the project is ``scorpiowatch``).
+_DISTRIBUTION = "scorpiowatch"
 
 # typer (0.27+) vendors click into ``typer._click`` and raises the vendored exceptions, not
 # the top-level ``click`` package's. ``typer.Abort`` is re-exported publicly (used below); the
@@ -33,6 +45,53 @@ app = typer.Typer(
 )
 app.command()(run)
 app.command()(init)
+
+
+def _installed_version() -> str:
+    """The installed distribution's version string.
+
+    Returns:
+        The version recorded in the installed distribution's metadata, or ``"unknown"`` when
+        ScorpioWatch is being run straight from a source tree that was never installed (no
+        ``.dist-info`` exists to read a version from).
+    """
+    try:
+        return _distribution_version(_DISTRIBUTION)
+    except PackageNotFoundError:
+        return "unknown"
+
+
+def _version_callback(value: bool) -> None:
+    """Print ``swatch <version>`` and exit, when ``--version`` was given.
+
+    Eager and terminal, the conventional shape for a version flag: it answers before the app
+    insists on a subcommand, so ``swatch --version`` is a complete invocation.
+
+    Args:
+        value: Whether ``--version`` was passed.
+
+    Raises:
+        typer.Exit: When ``value`` is true, ending the invocation with success.
+    """
+    if not value:
+        return
+    console.print(f"swatch {_installed_version()}")
+    raise typer.Exit()
+
+
+@app.callback()
+def root(
+    version: Annotated[
+        bool,
+        typer.Option(
+            "--version",
+            callback=_version_callback,
+            is_eager=True,
+            help="Show the installed ScorpioWatch version and exit.",
+        ),
+    ] = False,
+) -> None:
+    """Cross-platform, event-driven workflow orchestration."""
 
 
 def _reconfigure_utf8(stream: object) -> None:
