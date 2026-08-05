@@ -146,7 +146,7 @@ Architectural Decision Records (ADRs), newest-relevant-context first within each
 
 ## Governance timeline
 
-**Phase 1 — BDFL (`v0.1.0` → `v2.3.0`).** San Shibu (`ScorpioCodeX`) is sole maintainer; all merges, all decisions. RFCs are welcome but not procedurally required. Constitutional amendments in this phase still require a recorded ADR with explicit rationale (see [`PROJECT_CONSTITUTION.md`](./PROJECT_CONSTITUTION.md) §7) — the bar stays high even without a Core Team to enforce it.
+**Phase 1 — BDFL (`v0.1.0` → `v2.3.0`).** ScorpioCodeX is sole maintainer; all merges, all decisions. RFCs are welcome but not procedurally required. Constitutional amendments in this phase still require a recorded ADR with explicit rationale (see [`PROJECT_CONSTITUTION.md`](./PROJECT_CONSTITUTION.md) §7) — the bar stays high even without a Core Team to enforce it.
 
 **Phase 2 — RFC + Core Team (`v3.0.0` onward).**
 

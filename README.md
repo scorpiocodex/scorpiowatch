@@ -211,4 +211,4 @@ Issues and discussion: [github.com/scorpiocodex/scorpiowatch](https://github.com
 
 ## License
 
-[MIT](./LICENSE) © San Shibu (`ScorpioCodeX`)
+[MIT](./LICENSE) © ScorpioCodeX

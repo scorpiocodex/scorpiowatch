@@ -27,7 +27,7 @@ A cross-platform, event-driven workflow orchestration engine for **local develop
 | **Name** | ScorpioWatch |
 | **Tagline** | Cross-platform, event-driven workflow orchestration for local dev, CI/CD, DevOps automation, and MCP-powered AI systems |
 | **Type** | Open-source Python orchestration engine — CLI, embeddable library, MCP server/client, optional TUI |
-| **Author** | San Shibu (`ScorpioCodeX`) |
+| **Author** | ScorpioCodeX |
 | **License** | MIT |
 | **Language** | Python 3.12+ |
 | **Repository** | `github.com/scorpiocodex/scorpiowatch` |
