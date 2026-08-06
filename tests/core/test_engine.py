@@ -25,6 +25,7 @@ from swatch.core.events import Event, EventBus
 from swatch.core.triggers import GlobMatch, Trigger
 from swatch.core.workflow import Step, Workflow
 from swatch.execution.executor import RunState
+from tests.watch_helpers import WAIT_S, arm
 
 _HEARTBEAT_SRC = (
     "import sys, time\n"
@@ -320,17 +321,48 @@ async def test_source_start_failure_raises_startup_error() -> None:
 # --------------------------------------------------------------------------- #
 
 
+class _WatchProbe:
+    """A ``SourceAdapter`` that wraps another and records every Event it yields.
+
+    The Engine owns its sources, so a test cannot observe the adapter's stream directly —
+    but ``arm`` needs somewhere to watch delivery land. Teeing provides that without
+    altering a single event the Engine receives.
+    """
+
+    def __init__(self, inner: FilesystemAdapter) -> None:
+        self.name = inner.name
+        self.seen: list[Event] = []
+        self._inner = inner
+
+    async def start(self) -> None:
+        await self._inner.start()
+
+    async def stop(self) -> None:
+        await self._inner.stop()
+
+    def events(self) -> AsyncIterator[Event]:
+        return self._tee()
+
+    async def _tee(self) -> AsyncIterator[Event]:
+        async for event in self._inner.events():
+            self.seen.append(event)
+            yield event
+
+
 @pytest.mark.filesystem
 async def test_engine_end_to_end_with_real_filesystem(tmp_path: Path) -> None:
     marker = tmp_path / "ran.txt"
     config = make_config(pattern="**/*.py", steps=[_writer_step("w", marker)])
-    adapter = FilesystemAdapter(tmp_path, debounce_ms=50, step_ms=10)
-    engine = Engine(config, sources=[adapter])
+    source = _WatchProbe(FilesystemAdapter(tmp_path, debounce_ms=50, step_ms=10))
+    engine = Engine(config, sources=[source])
     run_task = asyncio.create_task(engine.run(once=True))
     try:
-        await asyncio.sleep(0.4)  # let the watch establish
+        # Arming's sentinel is a `.tmp`, so it matches none of this trigger's `**/*.py`
+        # patterns and can never fire a run of its own — it only establishes that the watch
+        # is live, so the change under test cannot land in the pre-establishment gap.
+        await arm(tmp_path, source.seen)
         await _write(tmp_path / "api.py", "print('hi')")  # matches **/*.py
-        await asyncio.wait_for(run_task, timeout=10)
+        await asyncio.wait_for(run_task, timeout=WAIT_S)
     finally:
         if not run_task.done():
             await engine.shutdown(force=True)

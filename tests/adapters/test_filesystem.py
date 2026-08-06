@@ -6,7 +6,6 @@ mock — so the ingestion slice is genuinely proven end to end.
 """
 
 import asyncio
-import time
 from collections.abc import Callable
 from contextlib import suppress
 from pathlib import Path
@@ -16,51 +15,7 @@ from watchfiles import Change
 
 from swatch.adapters.filesystem import FilesystemAdapter
 from swatch.core.events import BackpressureStrategy, Event, EventBus
-
-# Every wait below is conditional — poll until the thing we need has happened. A fixed
-# sleep would have to be simultaneously long enough for the slowest loaded CI runner and
-# short enough not to pad the suite, and no constant is both: inotify, FSEvents, and
-# ReadDirectoryChangesW differ by an order of magnitude in delivery latency. So the
-# timeout is set generously, because it never paces a healthy run — it only bounds a hang.
-_POLL_S = 0.02
-_WAIT_S = 20.0
-
-# A sentinel rewritten until the watch delivers an event for it (see ``_arm``). Kept clear
-# of watchfiles' DefaultFilter (no leading dot, no ``~``/``.pyc``-style suffix) so it is
-# never silently filtered out, which would look exactly like a watch that never armed.
-_ARM_NAME = "_swatch_arm.tmp"
-
-
-def _names(events: list[Event]) -> set[str]:
-    """The basenames of the paths carried by ``events``."""
-    return {Path(event.payload["path"]).name for event in events}
-
-
-async def _wait_until(predicate: Callable[[], bool], *, what: str) -> None:
-    """Poll ``predicate`` until true, or fail naming ``what`` we were waiting for."""
-    deadline = time.monotonic() + _WAIT_S
-    while not predicate():
-        if time.monotonic() > deadline:
-            raise AssertionError(f"timed out after {_WAIT_S}s waiting for {what}")
-        await asyncio.sleep(_POLL_S)
-
-
-async def _arm(adapter: FilesystemAdapter, collected: list[Event]) -> None:
-    """Block until the watch is provably live, by making it prove it.
-
-    ``watchfiles`` exposes no "the watch is established" signal, and a change applied
-    before it is established is lost silently — the classic source of a flaky watcher
-    test, because the mutation lands in the gap and no event ever arrives. Rewriting a
-    sentinel until an event for it comes back replaces that guess with evidence:
-    delivery *is* the proof.
-    """
-    arm = adapter._root / _ARM_NAME
-    deadline = time.monotonic() + _WAIT_S
-    while _ARM_NAME not in _names(collected):
-        if time.monotonic() > deadline:
-            raise AssertionError(f"the watch never armed: no event for {_ARM_NAME} in {_WAIT_S}s")
-        await asyncio.to_thread(arm.write_text, str(time.monotonic()))
-        await asyncio.sleep(_POLL_S)
+from tests.watch_helpers import arm, names, wait_until
 
 
 async def _collect(
@@ -81,9 +36,9 @@ async def _collect(
     await adapter.start()
     task = asyncio.create_task(pump())
     try:
-        await _arm(adapter, collected)
+        await arm(adapter._root, collected)
         mutate()
-        await _wait_until(lambda: expect in _names(collected), what=f"an event naming {expect!r}")
+        await wait_until(lambda: expect in names(collected), what=f"an event naming {expect!r}")
     finally:
         await adapter.stop()
         await asyncio.wait_for(task, timeout=5)
@@ -203,7 +158,7 @@ async def test_stop_ends_the_stream_cleanly(tmp_path: Path) -> None:
     task = asyncio.create_task(pump())
     # Stop a watch that is provably live, not one that may still be starting — stopping
     # a watch that never established would prove nothing about the stream ending cleanly.
-    await _arm(adapter, collected)
+    await arm(adapter._root, collected)
     await adapter.stop()
     await asyncio.wait_for(task, timeout=5)  # ends on its own — no hang, no cancellation
     assert task.done()
@@ -232,9 +187,9 @@ async def test_slice_adapter_to_bus_to_subscriber(tmp_path: Path) -> None:
     pump_task = asyncio.create_task(pump())
     # Arming on `received` rather than on the adapter's own output proves the whole chain
     # — adapter, bus, subscriber — is live before the change under test is applied.
-    await _arm(adapter, received)
+    await arm(tmp_path, received)
     await asyncio.to_thread((tmp_path / "slice.txt").write_text, "hi")
-    await _wait_until(lambda: "slice.txt" in _names(received), what="the sliced event")
+    await wait_until(lambda: "slice.txt" in names(received), what="the sliced event")
     await adapter.stop()
     await asyncio.wait_for(pump_task, timeout=5)
     sub_task.cancel()
