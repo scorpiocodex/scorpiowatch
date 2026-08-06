@@ -64,7 +64,7 @@ webhooks = []                  # webhook source-adapter plugin — v2.1.0
 queue = []                     # queue source-adapter plugin — v2.1.0
 git = []                       # git source-adapter plugin — v2.1.0
 ci = []                        # ci-provider source-adapter plugin — v2.1.0
-mcp = ["mcp>=1.0.0"]           # official MCP SDK (stack §1) — server mode in v0.3.0
+mcp = ["mcp>=2.0.0"]           # official MCP SDK (stack §1) — server mode in v0.3.0
 all = ["scorpiowatch[tui,otel,webhooks,queue,git,ci,mcp]"]
 
 [project.urls]
