@@ -12,7 +12,7 @@ from swatch.adapters.filesystem import FilesystemAdapter
 from swatch.core.events import BackpressureStrategy, Event, EventBus
 from swatch.core.triggers import GlobMatch, Trigger, TriggerEngine, TriggerFired
 from swatch.core.workflow import Workflow
-from tests.watch_helpers import arm, wait_until
+from tests.watch_helpers import arm, names, wait_until
 
 
 def make_event(path: str = "src/api.py", *, source: str = "filesystem") -> Event:
@@ -142,8 +142,17 @@ async def test_end_to_end_filesystem_to_engine(tmp_path: Path) -> None:
         # triggers and can never appear in `fired` — it only establishes that the watch is
         # live, so neither write below can land in the pre-establishment gap and vanish.
         await arm(tmp_path, seen)
-        await asyncio.to_thread((tmp_path / "api.py").write_text, "print('hi')")  # matches
+        # The non-matching write goes first, and is waited for before the matching one is
+        # made. Ordering the two writes is not on its own enough to order their *events*:
+        # written back to back they land in one debounce batch, and `_translate` iterates a
+        # set, so which arrives first is arbitrary (measured: `api.py` came out first in 2
+        # of 6 trials). Waiting until `notes.md` has been delivered — and so published onto
+        # the FIFO bus — before `api.py` even exists is what makes the ignore assertion
+        # below load-bearing: a fire for `api.py` then proves the engine had already
+        # consumed `notes.md` and chose not to fire on it.
         await asyncio.to_thread((tmp_path / "notes.md").write_text, "hello")  # does not match
+        await wait_until(lambda: "notes.md" in names(seen), what="the non-matching event")
+        await asyncio.to_thread((tmp_path / "api.py").write_text, "print('hi')")  # matches
         await wait_until(
             lambda: any(f.event.type == "added" for f in fired), what="an added fire to arrive"
         )
