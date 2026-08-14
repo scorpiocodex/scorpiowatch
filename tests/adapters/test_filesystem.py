@@ -15,17 +15,36 @@ from watchfiles import Change
 
 from swatch.adapters.filesystem import FilesystemAdapter
 from swatch.core.events import BackpressureStrategy, Event, EventBus
-from tests.watch_helpers import arm, names, wait_until
+from tests.watch_helpers import arm, names, pairs, wait_until
 
 
 async def _collect(
-    adapter: FilesystemAdapter, mutate: Callable[[], None], *, expect: str
+    adapter: FilesystemAdapter,
+    mutate: Callable[[], None],
+    *,
+    until: Callable[[list[Event]], bool],
+    what: str,
 ) -> list[Event]:
     """Run ``mutate`` under a live watch and return every Event delivered.
 
-    Starts the adapter, waits for the watch to arm, applies ``mutate``, then waits for an
-    event naming ``expect`` before stopping — so the collector is paced by the platform's
-    actual delivery latency rather than by a constant.
+    Starts the adapter, waits for the watch to arm, applies ``mutate``, then waits for
+    ``until`` before stopping — so the collector is paced by the platform's actual delivery
+    latency rather than by a constant.
+
+    ``until`` sees only the events delivered *after* ``mutate`` ran. That baseline is what
+    makes these tests robust to FSEvents: macOS replays the entries that already existed when
+    the watch opened as fresh ``added`` events, and a predicate reading the whole list can be
+    satisfied by one of those replays before the change under test has been seen at all —
+    stopping the adapter early and losing the very event the test exists to observe.
+
+    Args:
+        adapter: The adapter to start, drive, and stop.
+        mutate: The filesystem change under test, applied once the watch is armed.
+        until: Predicate over the events delivered after ``mutate``, polled until true.
+        what: Named in the failure message if ``until`` never becomes true.
+
+    Returns:
+        Every event delivered across the whole window, replays included.
     """
     collected: list[Event] = []
 
@@ -37,8 +56,9 @@ async def _collect(
     task = asyncio.create_task(pump())
     try:
         await arm(adapter._root, collected)
+        baseline = len(collected)
         mutate()
-        await wait_until(lambda: expect in names(collected), what=f"an event naming {expect!r}")
+        await wait_until(lambda: until(collected[baseline:]), what=what)
     finally:
         await adapter.stop()
         await asyncio.wait_for(task, timeout=5)
@@ -108,7 +128,15 @@ async def test_stop_is_idempotent_and_safe_before_start(tmp_path: Path) -> None:
 async def test_create_emits_added_event(tmp_path: Path) -> None:
     target = tmp_path / "new.txt"
     adapter = FilesystemAdapter(tmp_path, debounce_ms=50, step_ms=10)
-    events = await _collect(adapter, lambda: target.write_text("hello"), expect="new.txt")
+    events = await _collect(
+        adapter,
+        lambda: target.write_text("hello"),
+        # `new.txt` does not exist when the watch opens, so no replay can name it — but the
+        # wait still matches the pair this test asserts, so it can only be satisfied by the
+        # creation itself and never by some other change that happens to name the file.
+        until=lambda fresh: ("added", "new.txt") in pairs(fresh),
+        what="an added event for new.txt",
+    )
     seen = {(e.type, Path(e.payload["path"]).name) for e in events}
     assert ("added", "new.txt") in seen
     assert all(e.source == "filesystem" for e in events)
@@ -128,7 +156,17 @@ async def test_modify_emits_a_change_event_naming_the_path(tmp_path: Path) -> No
     target = tmp_path / "existing.txt"
     target.write_text("v1")  # created before the watch starts
     adapter = FilesystemAdapter(tmp_path, debounce_ms=50, step_ms=10)
-    events = await _collect(adapter, lambda: target.write_text("v2"), expect="existing.txt")
+    events = await _collect(
+        adapter,
+        lambda: target.write_text("v2"),
+        # Matching a (kind, name) pair is not available here: which kind the write surfaces
+        # as is precisely what this test declines to pin. The post-mutate baseline carries
+        # the weight instead — on macOS `existing.txt` predates the watch and is replayed as
+        # `added`, and without the baseline that replay satisfies a name-only wait before the
+        # write under test is ever delivered, leaving the assertion to inspect the replay.
+        until=lambda fresh: "existing.txt" in names(fresh),
+        what="an event naming existing.txt delivered after the write",
+    )
     kinds = {e.type for e in events if Path(e.payload["path"]).name == "existing.txt"}
     assert kinds, "no event named the file that was written to"
     assert kinds <= {"added", "modified"}, f"a write to a live file must not surface as {kinds}"
@@ -140,7 +178,15 @@ async def test_delete_emits_deleted_event(tmp_path: Path) -> None:
     target = tmp_path / "doomed.txt"
     target.write_text("bye")  # created before the watch starts
     adapter = FilesystemAdapter(tmp_path, debounce_ms=50, step_ms=10)
-    events = await _collect(adapter, target.unlink, expect="doomed.txt")
+    events = await _collect(
+        adapter,
+        target.unlink,
+        # `doomed.txt` predates the watch, so macOS replays it as `added`. Waiting on the
+        # exact pair asserted below means that replay cannot end the collection window: an
+        # `added` is not a `deleted`, so the wait holds until the unlink itself lands.
+        until=lambda fresh: ("deleted", "doomed.txt") in pairs(fresh),
+        what="a deleted event for doomed.txt",
+    )
     seen = {(e.type, Path(e.payload["path"]).name) for e in events}
     assert ("deleted", "doomed.txt") in seen
 
@@ -189,7 +235,8 @@ async def test_slice_adapter_to_bus_to_subscriber(tmp_path: Path) -> None:
     # — adapter, bus, subscriber — is live before the change under test is applied.
     await arm(tmp_path, received)
     await asyncio.to_thread((tmp_path / "slice.txt").write_text, "hi")
-    await wait_until(lambda: "slice.txt" in names(received), what="the sliced event")
+    # The same pair the assertion below makes, for the same reason as the tests above.
+    await wait_until(lambda: ("added", "slice.txt") in pairs(received), what="the sliced event")
     await adapter.stop()
     await asyncio.wait_for(pump_task, timeout=5)
     sub_task.cancel()

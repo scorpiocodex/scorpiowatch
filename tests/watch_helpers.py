@@ -35,6 +35,17 @@ def names(events: list[Event]) -> set[str]:
     return {Path(event.payload["path"]).name for event in events}
 
 
+def pairs(events: list[Event]) -> set[tuple[str, str]]:
+    """The ``(kind, basename)`` pairs carried by ``events``.
+
+    Waiting on a pair rather than on a bare basename is what keeps a wait honest across
+    backends: macOS replays the entries that already existed when a watch opened as fresh
+    ``added`` events, so a name-only wait for a file that predates the watch is satisfied by
+    the replay instead of by the change under test.
+    """
+    return {(event.type, Path(event.payload["path"]).name) for event in events}
+
+
 async def wait_until(predicate: Callable[[], bool], *, what: str) -> None:
     """Poll ``predicate`` until it is true, or fail naming ``what`` we were waiting for.
 
