@@ -8,6 +8,9 @@ on:
   push:
     branches: [main, develop]
   pull_request:
+  # Lets the gate be run on demand against any ref — needed to verify a tip that was
+  # pushed without CI, and to re-check a base after it has moved under an open PR.
+  workflow_dispatch:
 
 # Cancel superseded runs on the same ref to save CI minutes.
 concurrency:
