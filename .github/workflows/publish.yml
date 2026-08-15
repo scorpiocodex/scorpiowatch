@@ -120,6 +120,16 @@ jobs:
       - uses: pypa/gh-action-pypi-publish@release/v1
         with:
           repository-url: https://test.pypi.org/legacy/
+          # TestPyPI only — the asymmetry with `publish-pypi` below is deliberate, do not
+          # "fix" it by adding this there. Index uploads are immutable, so re-running this
+          # dry run at an unchanged version re-uploads a file that already exists and the
+          # index answers `400 File already exists`. That turns the check we most want to
+          # trust before a release into one that always fails, and a *genuine* failure — a
+          # broken artifact hand-off, a bad build — would be indistinguishable from that
+          # noise. Skipping the duplicate lets the run report on what it actually tests.
+          # On the real index the same duplicate means the version was never bumped, which
+          # is precisely the mistake that must fail loudly; hence not there.
+          skip-existing: true
 
   publish-pypi:
     name: publish → PyPI
