@@ -37,8 +37,7 @@ swatch/
 │       │   ├── metrics.py         # Prometheus exporter
 │       │   └── tracing.py         # OpenTelemetry exporter
 │       │
-│       ├── adapters/                 # Layer: Adapter — platform/protocol specific
-│       │   ├── base.py            # Abstract SourceAdapter Protocol
+│       ├── adapters/                 # Layer: Adapter — implements core/ports.py (ADR-0010 Option A)
 │       │   ├── filesystem.py      # core-bundled
 │       │   ├── cron.py            # core-bundled
 │       │   ├── manual.py          # core-bundled
