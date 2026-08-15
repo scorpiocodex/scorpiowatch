@@ -45,8 +45,8 @@ Restating Article III of [`PROJECT_CONSTITUTION.md`](./PROJECT_CONSTITUTION.md) 
 
 - `asyncio.create_subprocess_exec` only; `argv` is always a `list[str]` built from validated, typed fields — never a formatted or concatenated string.
 - **Environment scrubbing:** only variables named in an explicit `env_allowlist` reach the child process. Everything else, including ambient secrets in the parent environment, is withheld by default.
-- **cwd jailing** *(planned — not in v0.1.0)*: a Step's working directory is resolved and checked to be inside the configured project root; symlink escapes are rejected. As of v0.1.0 a Step's `cwd` is passed to the child unvalidated, so this bullet describes the intended control, not a shipped one.
-- **Timeouts** *(partially shipped)*: a Step's `timeout_s` is **opt-in and defaults to none** — a Step that names no timeout runs unbounded. Where a timeout *is* set, expiry terminates the subprocess and its whole process group, not just the asyncio task. Making a timeout mandatory (or defaulting it) is not yet decided.
+- **cwd jailing** *(planned — [ROADMAP](./ROADMAP.md) v0.2.0)*: a Step's working directory is resolved and checked to be inside the configured project root; symlink escapes are rejected, and an escaping `cwd` fails at config-validation time rather than mid-Run. **Not implemented as of v0.1.0** — a Step's `cwd` is passed to the child unvalidated — so this bullet describes the intended control, not a shipped one.
+- **Timeouts** *(partially shipped — mandatory `timeout_s` planned for [ROADMAP](./ROADMAP.md) v0.3.0, with a validation warning in v0.2.0)*: a Step's `timeout_s` is **opt-in and defaults to none** as of v0.1.0 — a Step that names no timeout runs unbounded. Where a timeout *is* set, expiry terminates the subprocess and its whole process group, not just the asyncio task. The migration is deliberately two-step (warn, then require) so no existing config meets the requirement for the first time as a hard failure.
 - **No implicit privilege escalation:** ScorpioWatch never re-execs itself with elevated privileges to satisfy a Step.
 
 ---
