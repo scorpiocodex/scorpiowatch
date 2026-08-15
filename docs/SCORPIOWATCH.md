@@ -206,6 +206,6 @@ expose = ["trigger_workflow", "get_run_status"]
 
 ## 9. Status
 
-Pre-release planning. Scope and terminology were broadened on **2026-07-07** (see ADR-0003). Implementation follows the six-phase build order and version bands in [`ROADMAP.md`](./ROADMAP.md).
+Pre-release. **v0.1.0 shipped on 2026-08-02** — a working ingestion → match → execute pipeline (`FilesystemAdapter`, `EventBus`, `TriggerEngine`, `Scheduler`, `Executor`, `swatch run` / `swatch init`); see [`CHANGELOG.md`](../CHANGELOG.md). No public stability guarantees apply below v1.0.0. Scope and terminology were broadened on **2026-07-07** (see ADR-0003). Implementation follows the six-phase build order and version bands in [`ROADMAP.md`](./ROADMAP.md).
 
 — `ScorpioCodeX`

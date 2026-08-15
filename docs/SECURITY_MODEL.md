@@ -44,9 +44,9 @@ Anything crossing from the untrusted zone into a Step's `argv` or environment mu
 Restating Article III of [`PROJECT_CONSTITUTION.md`](./PROJECT_CONSTITUTION.md) at the mechanism level:
 
 - `asyncio.create_subprocess_exec` only; `argv` is always a `list[str]` built from validated, typed fields — never a formatted or concatenated string.
-- **cwd jailing:** a Step's working directory is resolved and checked to be inside the configured project root; symlink escapes are rejected.
-- **Environment scrubbing:** only variables named in an explicit `env_passthrough` allowlist reach the child process. Everything else, including ambient secrets in the parent environment, is withheld by default.
-- **Timeouts:** every Step has a hard timeout; on expiry, the subprocess and its process group are terminated, not just the asyncio task.
+- **Environment scrubbing:** only variables named in an explicit `env_allowlist` reach the child process. Everything else, including ambient secrets in the parent environment, is withheld by default.
+- **cwd jailing** *(planned — not in v0.1.0)*: a Step's working directory is resolved and checked to be inside the configured project root; symlink escapes are rejected. As of v0.1.0 a Step's `cwd` is passed to the child unvalidated, so this bullet describes the intended control, not a shipped one.
+- **Timeouts** *(partially shipped)*: a Step's `timeout_s` is **opt-in and defaults to none** — a Step that names no timeout runs unbounded. Where a timeout *is* set, expiry terminates the subprocess and its whole process group, not just the asyncio task. Making a timeout mandatory (or defaulting it) is not yet decided.
 - **No implicit privilege escalation:** ScorpioWatch never re-execs itself with elevated privileges to satisfy a Step.
 
 ---

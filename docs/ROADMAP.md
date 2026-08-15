@@ -24,7 +24,8 @@ The ~10 h/week capacity is a **maintainer-owned assumption, not a measurement** 
 
 **v0.1.0 — Bootstrap (target: 4 effort-weeks ≈ month 4)**
 - Project scaffolding per [`PROJECT_STRUCTURE.md`](./PROJECT_STRUCTURE.md); MIT license, base CI
-- `FilesystemAdapter` (Linux only), `ManualAdapter`
+- `FilesystemAdapter` (Linux only)
+- Bounded `EventBus` with backpressure strategies (`drop_oldest | block | report_and_drop`), each subscriber on its own queue, every drop counted and logged as `queue.dropped` — **pulled forward from v0.2.0**, because the vertical slice this release ships (adapter → bus → subscriber) needs the bus to exist, and building an unbounded placeholder first would have been throwaway work
 - `TriggerEngine` with glob patterns, no scoring yet
 - `Executor`: a linear (single-branch) Workflow of `subprocess` Steps, `shell=False`, per-step opt-in `timeout_s` (default none), process-group teardown, and streamed-and-bounded output capture ([`EXECUTION_MODEL.md`](./EXECUTION_MODEL.md) §2/§6)
 - `Scheduler` **seam**: admits every fired Trigger's Workflow to the `Executor` and owns the `Run` lifecycle. **Cooldown was pulled forward here** from v0.3.0 — a leading-edge per-`(trigger, matched_path)` throttle, on by default, observable via `admission.suppressed` ([`MODULE_SPECIFICATIONS.md`](./MODULE_SPECIFICATIONS.md) §4). The rest of the full `Scheduler` (dedupe, rate limiting) remains v0.3.0.
@@ -33,11 +34,11 @@ The ~10 h/week capacity is a **maintainer-owned assumption, not a measurement** 
 **v0.1.1** — bugfix: adapter not closing cleanly on SIGINT
 **v0.1.2** — bugfix: subprocess zombies on cancellation
 
-**v0.2.0 — EventBus + Storage skeleton (target: 7 effort-weeks ≈ month 7)**
-- Bounded `EventBus` with backpressure strategies
+**v0.2.0 — Storage skeleton + adapter expansion (target: 7 effort-weeks ≈ month 7)**
 - `EventStore` skeleton (`aiosqlite`, no batching yet)
 - macOS `FilesystemAdapter` support
 - `CronAdapter` (core-bundled)
+- `ManualAdapter` (core-bundled) — **moved here from v0.1.0**, which listed it as shipped although it was never implemented; `adapters/` contains only `filesystem.py` today. It remains planned: v1.0.0's core MVP names the manual adapter, so it has to land somewhere in the pre-release band, and it pairs naturally with the `CronAdapter` already scheduled here.
 - Basic confidence scoring in `TriggerEngine`
 - `TriggerEngine` hardening: per-trigger error isolation in the `evaluate` loop — one trigger's evaluation failure is contained and logged, never sinking the batch ([`ENGINEERING_PRINCIPLES.md`](./ENGINEERING_PRINCIPLES.md) §7) — needed once non-glob (predicate) matching lands
 
@@ -49,6 +50,7 @@ The ~10 h/week capacity is a **maintainer-owned assumption, not a measurement** 
 - **Debounce** — trailing-edge coalescing that waits out a spaced burst and runs once on the *settled* state. This is distinct from v0.1.0's leading-edge cooldown (run first, suppress the rest): debounce trades immediacy for running on the final state, and is the better fit for slow settle-then-run workflows.
 - Windows `FilesystemAdapter` support (`ReadDirectoryChangesW`)
 - `MCPTriggerAdapter` + minimal MCP server mode (`trigger_workflow` only)
+  - **Raise the `mcp` floor to `>=2.0.0` when server mode is implemented** — the current `>=1.0.0` constraint in `pyproject.toml`'s `mcp` extra predates mcp 2.0 and admits an incompatible major. It is harmless today because nothing imports `mcp`; the moment server-mode code does, a resolver is free to satisfy the extra with a 1.x that the code was never written against.
 - `swatch check` and `swatch doctor`
 
 **v0.3.1** — bugfix: dedupe key collisions for similar paths
